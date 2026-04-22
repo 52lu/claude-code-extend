@@ -2,15 +2,12 @@
 """session-guard: Claude Code 会话守护 hook
 
 事件:
-  - Notification (matcher: idle_prompt): 检查 current-session.json，通过 additionalContext 让 Claude 询问用户
+  - SessionStart: 检查 current-session.json，通过 additionalContext 让 Claude 询问用户
   - Stop: 更新 current-session.json
 
-注意: Hook 的 stdin 被 Claude Code 的 JSON 数据占用，无法用 input() 读取终端输入。
-因此交互式问答通过 additionalContext 注入到 Claude 的对话上下文中，由 Claude 主动询问用户。
-
 stdin JSON 字段:
-  session_id, transcript_path, cwd, hook_event_name, message,
-  notification_type (Notification), stop_hook_active, last_assistant_message (Stop)
+  session_id, transcript_path, cwd, hook_event_name, source (SessionStart),
+  stop_hook_active, last_assistant_message (Stop)
 """
 
 import json
@@ -97,23 +94,17 @@ def extract_last_user_message(transcript_path):
     return last_msg[:200]
 
 
-def handle_notification(data):
-    """处理 Notification 事件
+def handle_session_start(data):
+    """处理 SessionStart 事件
 
-    - 如果 notification_type 不是 idle_prompt，忽略
     - 如果 current-session.json 存在，通过 additionalContext 让 Claude 询问用户是否复用
     - 如果不存在，创建初始会话文件
     """
-    notification_type = data.get("notification_type", "")
-    if notification_type != "idle_prompt":
-        log(f"skip notification_type={notification_type}, waiting for idle_prompt")
-        return None
-
     cwd = data.get("cwd", os.getcwd())
     session_id = data.get("session_id", "unknown")
-    transcript_path = data.get("transcript_path", "")
+    source = data.get("source", "unknown")
 
-    log(f"Notification(idle_prompt) triggered, cwd={cwd}, session={session_id}")
+    log(f"SessionStart triggered, cwd={cwd}, session={session_id}, source={source}")
 
     session_file = get_session_file(cwd)
     existing = read_session(session_file)
@@ -135,7 +126,6 @@ def handle_notification(data):
         write_session(session_file, existing)
 
         # 通过 additionalContext 注入上下文，让 Claude 在对话中主动询问用户
-        # 注意：hook 的 stdin 被 Claude Code 占用，无法用 input() 读取终端输入
         status_desc = "已完成" if prev_status == "completed" else "未完成"
         context = (
             f"[session-guard] 检测到当前目录存在上次的会话记录（{status_desc}）。\n"
@@ -153,13 +143,12 @@ def handle_notification(data):
     else:
         # 首次进入，创建初始会话文件
         log(f"no existing session found, creating new one at {session_file}")
-        last_user_msg = extract_last_user_message(transcript_path)
 
         session_data = {
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "working_directory": cwd.replace(os.environ.get("HOME", ""), "~", 1),
             "session_id": session_id,
-            "last_user_message": last_user_msg,
+            "last_user_message": "",
             "resume_count": 0,
         }
 
@@ -167,7 +156,7 @@ def handle_notification(data):
             session_data["raw_input"] = data
 
         write_session(session_file, session_data)
-        log(f"session file created, user_msg={last_user_msg[:40]}")
+        log(f"session file created (first visit)")
         return None
 
 
@@ -216,8 +205,8 @@ def main():
 
     log(f"hook invoked, event={event}")
 
-    if event == "Notification":
-        result = handle_notification(data)
+    if event == "SessionStart":
+        result = handle_session_start(data)
     elif event == "Stop":
         result = handle_stop(data)
     else:
