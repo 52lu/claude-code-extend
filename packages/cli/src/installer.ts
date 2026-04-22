@@ -124,8 +124,10 @@ export function installScript(
     const events = metadata.event!.split(',').map((e) => e.trim()).filter(Boolean);
     const matcher = metadata.matcher || '';
 
-    for (const event of events) {
-      addHookToSettings(settings, event, command, matcher);
+    for (let i = 0; i < events.length; i++) {
+      // matcher 仅应用于第一个事件，其余事件 matcher 为空
+      const eventMatcher = i === 0 ? matcher : '';
+      addHookToSettings(settings, events[i], command, eventMatcher);
     }
     writeSettings(settingsPath, settings);
   }

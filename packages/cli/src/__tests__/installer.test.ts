@@ -181,7 +181,7 @@ describe('installScript / uninstallScript', () => {
     expect(settings.hooks!.Notification).toBeDefined();
     expect(settings.hooks!.Stop).toBeDefined();
     expect(settings.hooks!.Notification[0].matcher).toBe('idle_prompt');
-    expect(settings.hooks!.Stop[0].matcher).toBe('idle_prompt');
+    expect(settings.hooks!.Stop[0].matcher).toBe('');
   });
 
   it('should uninstall hook from all events', () => {

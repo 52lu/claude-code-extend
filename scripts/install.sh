@@ -162,7 +162,10 @@ if os.path.isdir(hooks_dir):
         matcher = metadata.get('matcher', '')
         command = f'bash {script_dir}/{entry_file}'
 
-        for event in events:
+        for idx, event in enumerate(events):
+            # matcher 仅应用于第一个事件，其余事件 matcher 为空
+            event_matcher = matcher if idx == 0 else ''
+
             # 移除已有的同名托管条目
             if event in settings['hooks']:
                 settings['hooks'][event] = [
@@ -177,11 +180,11 @@ if os.path.isdir(hooks_dir):
 
             # 添加新条目
             settings['hooks'][event].append({
-                'matcher': matcher,
+                'matcher': event_matcher,
                 'hooks': [{'type': 'command', 'command': command}]
             })
 
-            print(f'  {event}: {name}{" [matcher=" + matcher + "]" if matcher else ""}')
+            print(f'  {event}: {name}{" [matcher=" + event_matcher + "]" if event_matcher else ""}')
 
 # 写回
 with open(settings_file, 'w') as f:
