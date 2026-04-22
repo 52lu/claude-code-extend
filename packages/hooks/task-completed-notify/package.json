@@ -1,0 +1,11 @@
+{
+  "name": "@claude-extend/hook-task-notify",
+  "version": "1.0.0",
+  "description": "Send system notification when Claude Code task completes",
+  "files": [
+    "hook.sh",
+    "parse_hook.py",
+    "save_session.py",
+    "notify.py"
+  ]
+}
