@@ -1,0 +1,17 @@
+{
+  "name": "claude-code-extend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Claude Code hooks, agents, and tools manager",
+  "workspaces": [
+    "packages/*",
+    "packages/hooks/*",
+    "packages/agents/*",
+    "packages/tools/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w @claude-extend/cli",
+    "test": "npm run test -w @claude-extend/cli",
+    "lint": "echo 'lint not configured yet'"
+  }
+}
