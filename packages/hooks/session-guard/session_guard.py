@@ -2,8 +2,11 @@
 """session-guard: Claude Code 会话守护 hook
 
 事件:
-  - Notification (matcher: idle_prompt): 检查 current-session.json，交互式询问是否复用
+  - Notification (matcher: idle_prompt): 检查 current-session.json，通过 additionalContext 让 Claude 询问用户
   - Stop: 更新 current-session.json
+
+注意: Hook 的 stdin 被 Claude Code 的 JSON 数据占用，无法用 input() 读取终端输入。
+因此交互式问答通过 additionalContext 注入到 Claude 的对话上下文中，由 Claude 主动询问用户。
 
 stdin JSON 字段:
   session_id, transcript_path, cwd, hook_event_name, message,
@@ -94,42 +97,11 @@ def extract_last_user_message(transcript_path):
     return last_msg[:200]
 
 
-def ask_yes_no(prompt, default="n"):
-    """在终端显示交互式 y/n 提问，返回 True/False
-
-    Args:
-        prompt: 提示文本
-        default: 默认选项（用户直接回车时的选择）
-    """
-    if default == "y":
-        options = f"{BOLD}[Y/n]{NC}"
-    else:
-        options = f"{BOLD}[y/N]{NC}"
-
-    # 输出到 stderr，避免污染 stdout 的 JSON 输出
-    sys.stderr.write(f"{prompt} {options} ")
-    sys.stderr.flush()
-
-    try:
-        answer = input().strip().lower()
-    except (EOFError, KeyboardInterrupt):
-        sys.stderr.write("\n")
-        log("user interrupted prompt, using default")
-        return default == "y"
-
-    if answer in ("y", "yes"):
-        return True
-    if answer in ("n", "no"):
-        return False
-    return default == "y"
-
-
 def handle_notification(data):
     """处理 Notification 事件
 
     - 如果 notification_type 不是 idle_prompt，忽略
-    - 如果 current-session.json 存在且 status != completed，交互式询问是否复用
-    - 如果 current-session.json 存在且 status == completed，交互式询问是否查看历史
+    - 如果 current-session.json 存在，通过 additionalContext 让 Claude 询问用户是否复用
     - 如果不存在，创建初始会话文件
     """
     notification_type = data.get("notification_type", "")
@@ -156,58 +128,28 @@ def handle_notification(data):
 
         log(f"found existing session: status={prev_status}, resume_count={resume_count}, msg={prev_msg[:40]}")
 
-        # 显示会话摘要
-        sys.stderr.write(f"\n{CYAN}╔══════════════════════════════════════════════════╗{NC}\n")
-        sys.stderr.write(f"{CYAN}║{NC}  {BOLD}🔄 Session Guard - 检测到历史会话{NC}              \n")
-        sys.stderr.write(f"{CYAN}╠══════════════════════════════════════════════════╣{NC}\n")
-
-        # 上次提问
-        display_msg = prev_msg[:50] + "..." if len(prev_msg) > 50 else prev_msg
-        sys.stderr.write(f"{CYAN}║{NC}  {BLUE}上次提问:{NC}  {YELLOW}{display_msg}{NC}\n")
-
-        # 上次回复摘要
-        if prev_assistant:
-            display_asst = prev_assistant[:50] + "..." if len(prev_assistant) > 50 else prev_assistant
-            sys.stderr.write(f"{CYAN}║{NC}  {BLUE}上次回复:{NC}  {YELLOW}{display_asst}{NC}\n")
-
-        # 时间和状态
-        status_icon = "✅" if prev_status == "completed" else "⏸️"
-        sys.stderr.write(f"{CYAN}║{NC}  {BLUE}时间:{NC}      {prev_time}  {status_icon} {prev_status or 'unknown'}\n")
-
-        if resume_count > 0:
-            sys.stderr.write(f"{CYAN}║{NC}  {BLUE}已恢复:{NC}    {resume_count} 次\n")
-
-        sys.stderr.write(f"{CYAN}║{NC}  {BLUE}目录:{NC}      {work_dir}\n")
-        sys.stderr.write(f"{CYAN}╚══════════════════════════════════════════════════╝{NC}\n\n")
-
-        # 交互式询问
-        want_resume = ask_yes_no(
-            f"{BOLD}{GREEN}是否继续上次的对话？{NC}",
-            default="n"
-        )
-        sys.stderr.write("\n")
-
         # 更新 resume 计数
         new_count = resume_count + 1
         existing["resume_count"] = new_count
         existing["last_resumed_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         write_session(session_file, existing)
 
-        if want_resume:
-            log(f"user chose RESUME (resume_count={new_count})")
-            # 用户选择复用，注入上下文让 Claude 继续之前的对话
-            context = (
-                f"[session-guard] 用户选择继续之前的会话。"
-                f"上次提问: {prev_msg}。"
-                f"上次回复摘要: {prev_assistant[:200] if prev_assistant else '无'}。"
-                f"请基于以上上下文继续对话，询问用户是否需要补充或调整方向。"
-            )
-            return {"additionalContext": context}
-        else:
-            log(f"user chose NEW SESSION (resume_count={new_count})")
-            # 用户不复用，提示 Claude 这是全新对话
-            sys.stderr.write(f"{BLUE}  → 开始全新会话{NC}\n\n")
-            return None
+        # 通过 additionalContext 注入上下文，让 Claude 在对话中主动询问用户
+        # 注意：hook 的 stdin 被 Claude Code 占用，无法用 input() 读取终端输入
+        status_desc = "已完成" if prev_status == "completed" else "未完成"
+        context = (
+            f"[session-guard] 检测到当前目录存在上次的会话记录（{status_desc}）。\n"
+            f"- 上次提问: {prev_msg}\n"
+            f"- 上次回复摘要: {prev_assistant[:200] if prev_assistant else '无'}\n"
+            f"- 时间: {prev_time}\n"
+            f"- 已恢复次数: {new_count}\n"
+            f"- 工作目录: {work_dir}\n\n"
+            f"请你用中文直接询问用户：「是否继续上次的对话？如果继续，我将基于之前的上下文继续工作；如果不需要，我们将开始全新的对话。」\n"
+            f"等待用户回答后再继续。如果用户选择继续，请基于以上上下文恢复工作。"
+        )
+
+        log(f"returning additionalContext for resume (resume_count={new_count})")
+        return {"additionalContext": context}
     else:
         # 首次进入，创建初始会话文件
         log(f"no existing session found, creating new one at {session_file}")
