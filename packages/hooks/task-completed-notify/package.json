@@ -5,7 +5,6 @@
   "files": [
     "hook.sh",
     "parse_hook.py",
-    "save_session.py",
     "notify.py"
   ]
 }

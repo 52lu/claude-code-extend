@@ -15,6 +15,7 @@ export function infoCommand(name: string): void {
   console.log(`Name:          ${m.name}`);
   console.log(`Type:          ${m.type}`);
   if (m.event) console.log(`Event:         ${m.event}`);
+  if (m.matcher) console.log(`Matcher:       ${m.matcher}`);
   console.log(`Description:   ${m.description}`);
   console.log(`Version:       ${m.version}`);
   if (m.dependencies.length > 0) {

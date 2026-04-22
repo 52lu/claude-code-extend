@@ -2,6 +2,7 @@ export interface ScriptMetadata {
   name: string;
   type: 'hook' | 'agent' | 'tool';
   event?: string;
+  matcher?: string;
   description: string;
   dependencies: string[];
   version: string;
@@ -56,6 +57,7 @@ export function parseScriptMetadata(content: string): ScriptMetadata {
     name: fields.name,
     type,
     event: fields.event,
+    matcher: fields.matcher,
     description: fields.description || '',
     dependencies,
     version: fields.version,

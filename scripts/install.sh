@@ -158,28 +158,30 @@ if os.path.isdir(hooks_dir):
         if 'claude-extend' not in metadata or 'event' not in metadata:
             continue
 
-        event = metadata['event']
+        events = [e.strip() for e in metadata['event'].split(',') if e.strip()]
+        matcher = metadata.get('matcher', '')
         command = f'bash {script_dir}/{entry_file}'
 
-        # 移除已有的同名托管条目
-        if event in settings['hooks']:
-            settings['hooks'][event] = [
-                entry for entry in settings['hooks'][event]
-                if not any(
-                    '.claude-extend/' in h.get('command', '') and f'/{name}/' in h.get('command', '')
-                    for h in entry.get('hooks', [])
-                )
-            ]
-        else:
-            settings['hooks'][event] = []
+        for event in events:
+            # 移除已有的同名托管条目
+            if event in settings['hooks']:
+                settings['hooks'][event] = [
+                    entry for entry in settings['hooks'][event]
+                    if not any(
+                        '.claude-extend/' in h.get('command', '') and f'/{name}/' in h.get('command', '')
+                        for h in entry.get('hooks', [])
+                    )
+                ]
+            else:
+                settings['hooks'][event] = []
 
-        # 添加新条目
-        settings['hooks'][event].append({
-            'matcher': '',
-            'hooks': [{'type': 'command', 'command': command}]
-        })
+            # 添加新条目
+            settings['hooks'][event].append({
+                'matcher': matcher,
+                'hooks': [{'type': 'command', 'command': command}]
+            })
 
-        print(f'  {event}: {name}')
+            print(f'  {event}: {name}{" [matcher=" + matcher + "]" if matcher else ""}')
 
 # 写回
 with open(settings_file, 'w') as f:

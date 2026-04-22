@@ -1,0 +1,9 @@
+{
+  "name": "@claude-extend/hook-session-guard",
+  "version": "1.0.0",
+  "description": "Session guard: check/create session file on idle, update on stop",
+  "files": [
+    "hook.sh",
+    "session_guard.py"
+  ]
+}

@@ -85,6 +85,13 @@ describe('addHookToSettings', () => {
     addHookToSettings(settings, 'Stop', 'bash ~/.claude-extend/hooks/test/hook.sh');
     expect(settings.hooks.Stop).toHaveLength(2);
   });
+
+  it('should add hook entry with custom matcher', () => {
+    const settings: any = { hooks: {} };
+    addHookToSettings(settings, 'Notification', 'bash ~/.claude-extend/hooks/sg/hook.sh', 'idle_prompt');
+    expect(settings.hooks.Notification).toHaveLength(1);
+    expect(settings.hooks.Notification[0].matcher).toBe('idle_prompt');
+  });
 });
 
 describe('removeHookFromSettings', () => {
@@ -160,6 +167,33 @@ describe('installScript / uninstallScript', () => {
     expect(fs.existsSync(path.join(extendDir, 'hooks', 'test', 'hook.sh'))).toBe(false);
 
     const settings = readSettings(settingsPath);
+    expect(settings.hooks?.Stop).toBeUndefined();
+  });
+
+  it('should install hook with multiple comma-separated events', () => {
+    const srcDir = path.join(tmpDir, 'source');
+    fs.mkdirSync(srcDir, { recursive: true });
+    fs.writeFileSync(path.join(srcDir, 'hook.sh'), '#!/bin/bash\n# @claude-extend\n# @name multi\n# @type hook\n# @event Notification,Stop\n# @matcher idle_prompt\n# @description multi event\n# @version 1.0.0\necho hi');
+
+    installScript(srcDir, 'hook.sh', 'hook', 'multi', extendDir, settingsPath);
+
+    const settings = readSettings(settingsPath);
+    expect(settings.hooks!.Notification).toBeDefined();
+    expect(settings.hooks!.Stop).toBeDefined();
+    expect(settings.hooks!.Notification[0].matcher).toBe('idle_prompt');
+    expect(settings.hooks!.Stop[0].matcher).toBe('idle_prompt');
+  });
+
+  it('should uninstall hook from all events', () => {
+    const srcDir = path.join(tmpDir, 'source');
+    fs.mkdirSync(srcDir, { recursive: true });
+    fs.writeFileSync(path.join(srcDir, 'hook.sh'), '#!/bin/bash\n# @claude-extend\n# @name multi\n# @type hook\n# @event Notification,Stop\n# @description multi\n# @version 1.0.0\necho hi');
+    installScript(srcDir, 'hook.sh', 'hook', 'multi', extendDir, settingsPath);
+
+    uninstallScript('hook', 'multi', extendDir, settingsPath);
+
+    const settings = readSettings(settingsPath);
+    expect(settings.hooks?.Notification).toBeUndefined();
     expect(settings.hooks?.Stop).toBeUndefined();
   });
 });

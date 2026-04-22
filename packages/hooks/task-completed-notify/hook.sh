@@ -72,21 +72,8 @@ if [ -z "$SESSION_ID" ]; then
     SESSION_ID=$(uuidgen 2>/dev/null || echo "unknown")
 fi
 
-# 保存会话信息到当前目录下的 current-session.json
-save_session_info() {
-    _HOOK_TIMESTAMP="$TIMESTAMP" \
-    _HOOK_PATH="$CURRENT_PATH" \
-    _HOOK_SESSION="$SESSION_ID" \
-    _HOOK_QUESTION="$LAST_USER_QUESTION" \
-    _HOOK_STDIN="${STDIN_DATA:-}" \
-    python3 "$SCRIPT_DIR/save_session.py" 2>/dev/null
-}
-
 # 记录日志
 echo "[$TIMESTAMP] Task completed - Path: $CURRENT_PATH, Session: $SESSION_ID, Title: $LAST_USER_QUESTION" >> "$LOG_FILE"
-
-# 保存会话信息
-save_session_info
 
 # 检测操作系统
 detect_os() {

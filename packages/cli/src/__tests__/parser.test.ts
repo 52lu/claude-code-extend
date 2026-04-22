@@ -20,8 +20,35 @@ describe('parseScriptMetadata', () => {
       name: 'task-completed-notify',
       type: 'hook',
       event: 'Stop',
+      matcher: undefined,
       description: '任务完成时发送通知',
       dependencies: ['notify-send', 'osascript'],
+      version: '1.0.0',
+    });
+  });
+
+  it('should parse hook with matcher and comma-separated events', () => {
+    const content = [
+      '#!/bin/bash',
+      '# @claude-extend',
+      '# @name session-guard',
+      '# @type hook',
+      '# @event Notification,Stop',
+      '# @matcher idle_prompt',
+      '# @description 会话守护',
+      '# @version 1.0.0',
+      '',
+      'echo "hello"',
+    ].join('\n');
+
+    const result = parseScriptMetadata(content);
+    expect(result).toEqual<ScriptMetadata>({
+      name: 'session-guard',
+      type: 'hook',
+      event: 'Notification,Stop',
+      matcher: 'idle_prompt',
+      description: '会话守护',
+      dependencies: [],
       version: '1.0.0',
     });
   });

@@ -41,7 +41,8 @@ export function writeSettings(settingsPath: string, settings: Settings): void {
 export function addHookToSettings(
   settings: Settings,
   event: string,
-  command: string
+  command: string,
+  matcher: string = ''
 ): void {
   if (!settings.hooks) {
     settings.hooks = {};
@@ -62,7 +63,7 @@ export function addHookToSettings(
   });
 
   settings.hooks[event].push({
-    matcher: '',
+    matcher,
     hooks: [{ type: 'command', command }],
   });
 }
@@ -120,7 +121,12 @@ export function installScript(
     const metadata = parseScriptMetadata(scriptContent);
 
     const command = `bash ${destDir}/${scriptFile}`;
-    addHookToSettings(settings, metadata.event!, command);
+    const events = metadata.event!.split(',').map((e) => e.trim()).filter(Boolean);
+    const matcher = metadata.matcher || '';
+
+    for (const event of events) {
+      addHookToSettings(settings, event, command, matcher);
+    }
     writeSettings(settingsPath, settings);
   }
 }

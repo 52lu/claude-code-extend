@@ -15,7 +15,8 @@ export function listCommand(type?: string): void {
   if (hooks.length > 0) {
     console.log('Hooks:');
     for (const s of hooks) {
-      console.log(`  ${s.metadata.name.padEnd(22)}${(s.metadata.event || '-').padEnd(12)}${s.metadata.description.padEnd(24)}v${s.metadata.version}`);
+      const matcher = s.metadata.matcher ? ` [${s.metadata.matcher}]` : '';
+      console.log(`  ${s.metadata.name.padEnd(22)}${(s.metadata.event || '-').padEnd(18)}${(s.metadata.description + matcher).padEnd(30)}v${s.metadata.version}`);
     }
     console.log();
   }
