@@ -1,6 +1,6 @@
 # session-guard
 
-Claude Code 会话守护 hook —— 空闲时检查/创建会话文件，结束时更新会话记录。
+Claude Code 会话守护 hook —— 空闲时交互式询问是否复用上次会话，结束时更新会话记录。
 
 监听 `Notification`（matcher: `idle_prompt`）和 `Stop` 两个事件，通过 `current-session.json` 文件实现跨会话的上下文保持。
 
@@ -9,7 +9,30 @@ Claude Code 会话守护 hook —— 空闲时检查/创建会话文件，结束
 | 文件 | 职责 |
 |------|------|
 | `hook.sh` | 主入口，转发 stdin JSON 给 Python 脚本 |
-| `session_guard.py` | 核心逻辑：检测会话文件、创建/更新会话记录、返回 additionalContext |
+| `session_guard.py` | 核心逻辑：检测会话文件、交互式 y/n 询问、创建/更新会话记录 |
+
+## 交互效果
+
+当用户启动 Claude Code 进入空闲状态时，如果当前目录存在 `current-session.json`：
+
+```
+╔══════════════════════════════════════════════════╗
+║  🔄 Session Guard - 检测到历史会话
+╠══════════════════════════════════════════════════╣
+║  上次提问:  修复登录页面跳转 bug
+║  上次回复:  已修复登录页面的路由跳转逻辑...
+║  时间:      2026-04-22 22:13:00  ✅ completed
+║  已恢复:    2 次
+║  目录:      ~/projects/my-app
+╚══════════════════════════════════════════════════╝
+
+是否继续上次的对话？ [y/N] y
+
+  → 注入上下文，Claude 将继续之前的对话
+```
+
+用户输入 `y` → 注入 `additionalContext`，Claude 基于上次对话继续
+用户输入 `n` → 开始全新会话，不注入任何上下文
 
 ## 流程图
 
@@ -47,23 +70,26 @@ Claude Code 会话守护 hook —— 空闲时检查/创建会话文件，结束
         │       │                     │
    存在 ▼       ▼ 不存在              ▼
  ┌──────────┐ ┌──────────┐    ┌──────────────────┐
- │ 返回      │ │ 创建初始 │    │ 更新字段:         │
- │ additional│ │ 会话文件 │    │  timestamp        │
- │ Context   │ │          │    │  last_user_message│
- │ 提示继续   │ │ 从       │    │  last_assistant_  │
- │ 之前的对话 │ │ transcript│    │    message        │
- │           │ │ 提取最后 │    │  status=completed │
- │ 更新      │ │ 用户消息 │    └──────────────────┘
- │ resume_   │ │          │
- │ count     │ │ 写入文件 │
- └──────────┘ └──────────┘
+ │ 显示会话  │ │ 创建初始 │    │ 更新字段:         │
+ │ 摘要卡片  │ │ 会话文件 │    │  timestamp        │
+ │          │ │          │    │  last_user_message│
+ │ y/n 询问  │ │ 从       │    │  last_assistant_  │
+ │ 是否复用？│ │ transcript│    │    message        │
+ │      │   │ │ 提取最后 │    │  status=completed │
+ │  y ↙  ↘ n│ │ 用户消息 │    └──────────────────┘
+ │ 注入      │ │          │
+ │ additional│ │ 写入文件 │
+ │ Context   │ └──────────┘
+ │ Claude 继续│
+ │ 之前的对话 │
+ └──────────┘
 ```
 
 ## 脚本执行逻辑详解
 
 ### hook.sh — 主入口
 
-极简入口，仅将 stdin 数据透传给 `session_guard.py`：
+极简入口，将 stdin 数据透传给 `session_guard.py`：
 
 ```
 stdin JSON ──→ python3 session_guard.py ──→ stdout JSON (可选)
@@ -78,32 +104,24 @@ stdin JSON ──→ python3 session_guard.py ──→ stdout JSON (可选)
 1. 检查 `notification_type`，仅处理 `idle_prompt`（Claude 空闲等待输入时）
 2. 检查 `current-session.json` 是否存在
 
-**文件已存在 → 提示继续对话**
+**文件已存在 → 交互式询问**
 
-返回 `additionalContext`，Claude Code 会将其注入对话上下文：
+1. 在终端显示会话摘要卡片（上次提问、回复、时间、状态、恢复次数）
+2. 弹出 y/n 提问："是否继续上次的对话？"
+3. 用户输入 `y` → 返回 `additionalContext`，Claude 基于历史上下文继续对话
+4. 用户输入 `n` → 不注入上下文，开始全新会话
+
+返回的 `additionalContext` 格式：
 
 ```json
 {
-  "additionalContext": "[session-guard] 检测到当前目录存在未完成的会话 (上次提问: 修复登录 bug..., 时间: 2026-04-22 22:13:00, 已恢复 2 次)。请询问用户是否继续之前的对话。"
+  "additionalContext": "[session-guard] 用户选择继续之前的会话。上次提问: 修复登录 bug。上次回复摘要: 已修复登录页面...。请基于以上上下文继续对话，询问用户是否需要补充或调整方向。"
 }
 ```
-
-同时更新文件中的 `resume_count` 和 `last_resumed_at`。
 
 **文件不存在 → 创建初始会话文件**
 
-从 transcript 提取用户最后消息，写入 `current-session.json`：
-
-```json
-{
-  "timestamp": "2026-04-22 22:13:00",
-  "working_directory": "~/projects/my-app",
-  "session_id": "abc-123",
-  "last_user_message": "修复登录 bug",
-  "resume_count": 0,
-  "raw_input": { ... }
-}
-```
+从 transcript 提取用户最后消息，静默创建文件，不阻塞用户。
 
 #### Stop 路径
 
@@ -126,13 +144,16 @@ stdin JSON ──→ python3 session_guard.py ──→ stdout JSON (可选)
 ## current-session.json 生命周期
 
 ```
-用户提问 ──→ Claude 空闲(idle_prompt) ──→ 文件不存在 ──→ 创建初始文件
+用户提问 ──→ Claude 空闲(idle_prompt) ──→ 文件不存在 ──→ 静默创建初始文件
                                               │
-用户再次提问 ──→ Claude 空闲 ──→ 文件存在 ──→ 提示继续 + 更新 resume_count
+用户再次提问 ──→ Claude 空闲 ──→ 文件存在 ──→ 显示摘要卡片 + y/n 询问
+                                              │
+                                    y ──→ 注入上下文，继续对话
+                                    n ──→ 全新会话
                                               │
          Claude 完成(Stop) ──→ 更新文件 status=completed
                                               │
-         用户离开后重新进入 ──→ Claude 空闲 ──→ 文件存在(completed) ──→ 提示继续
+         用户离开后重新进入 ──→ Claude 空闲 ──→ 文件存在(completed) ──→ 询问是否复用
 ```
 
 > 注意：当前实现不会自动删除 `current-session.json`，需手动清理或通过其他机制处理。

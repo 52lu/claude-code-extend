@@ -27,8 +27,12 @@ TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
 LOG_FILE="$HOME/.claude-code/task-completion.log"
 mkdir -p "$(dirname "$LOG_FILE")"
 
+echo "[$TIMESTAMP] === task-completed-notify hook started ===" >> "$LOG_FILE"
+
 # 获取当前工作目录（用 ~ 替代用户根目录，缩短显示）
 CURRENT_PATH=$(pwd | sed "s|^$HOME|~|")
+
+echo "[$TIMESTAMP] cwd=$CURRENT_PATH, script_dir=$SCRIPT_DIR" >> "$LOG_FILE"
 
 # 获取用户问题和会话ID
 LAST_USER_QUESTION=""
@@ -45,23 +49,32 @@ if [ ! -t 0 ]; then
         PARSE_RESULT=$(_HOOK_STDIN="$STDIN_DATA" python3 "$SCRIPT_DIR/parse_hook.py" 2>/dev/null)
         SESSION_ID=$(echo "$PARSE_RESULT" | head -1)
         LAST_USER_QUESTION=$(echo "$PARSE_RESULT" | tail -1)
+        echo "[$TIMESTAMP] parse_hook result: session=$SESSION_ID, question=$LAST_USER_QUESTION" >> "$LOG_FILE"
+    else
+        echo "[$TIMESTAMP] WARNING: python3 not found, cannot parse stdin" >> "$LOG_FILE"
     fi
+else
+    echo "[$TIMESTAMP] No stdin data (not a pipe)" >> "$LOG_FILE"
 fi
 
 # 2. 环境变量回退
 if [ -z "$LAST_USER_QUESTION" ]; then
     LAST_USER_QUESTION="${CLAUDE_LAST_QUESTION:-}"
+    [ -n "$LAST_USER_QUESTION" ] && echo "[$TIMESTAMP] Fallback to env CLAUDE_LAST_QUESTION" >> "$LOG_FILE"
 fi
 if [ -z "$SESSION_ID" ]; then
     SESSION_ID="${CLAUDE_SESSION_ID:-}"
+    [ -n "$SESSION_ID" ] && echo "[$TIMESTAMP] Fallback to env CLAUDE_SESSION_ID" >> "$LOG_FILE"
 fi
 
 # 3. 命令行参数回退
 if [ -z "$LAST_USER_QUESTION" ] && [ -n "$1" ]; then
     LAST_USER_QUESTION="$1"
+    echo "[$TIMESTAMP] Fallback to arg \$1" >> "$LOG_FILE"
 fi
 if [ -z "$SESSION_ID" ] && [ -n "$2" ]; then
     SESSION_ID="$2"
+    echo "[$TIMESTAMP] Fallback to arg \$2" >> "$LOG_FILE"
 fi
 
 # 4. 默认值
@@ -89,6 +102,7 @@ detect_os() {
 }
 
 OS=$(detect_os)
+echo "[$TIMESTAMP] OS=$OS" >> "$LOG_FILE"
 
 # 通知提示音（可选值：Basso, Blow, Bottle, Frog, Funk, Glass, Hero, Morse, Ping, Pop, Purr, Sosumi, Submarine, Tink）
 NOTIFICATION_SOUND="${NOTIFICATION_SOUND:-Ping}"
@@ -168,15 +182,21 @@ echo ""
 # 执行通知
 send_notification
 play_sound
+echo "[$TIMESTAMP] Notification sent (OS=$OS)" >> "$LOG_FILE"
 
 # 可选：发送远程通知
 send_slack_notification
+[ -n "$SLACK_WEBHOOK_URL" ] && echo "[$TIMESTAMP] Slack notification sent" >> "$LOG_FILE"
 send_email_notification
+[ -n "$NOTIFICATION_EMAIL" ] && echo "[$TIMESTAMP] Email notification sent" >> "$LOG_FILE"
 
 # 可选：执行自定义命令
 if [ -n "$POST_TASK_COMMAND" ]; then
     echo -e "${BLUE}Executing post-task command...${NC}"
+    echo "[$TIMESTAMP] Running POST_TASK_COMMAND: $POST_TASK_COMMAND" >> "$LOG_FILE"
     eval "$POST_TASK_COMMAND"
 fi
+
+echo "[$TIMESTAMP] === task-completed-notify hook finished ===" >> "$LOG_FILE"
 
 exit 0
