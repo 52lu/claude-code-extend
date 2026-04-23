@@ -2,12 +2,10 @@
 """session-guard: Claude Code 会话守护 hook
 
 事件:
-  - SessionStart: 检查 current-session.json，通过 additionalContext 让 Claude 询问用户
-  - Stop: 更新 current-session.json
+  - SessionStart: 检查 session_id，不同则归档旧会话，创建新会话文件
+  - Stop: 追加用户问题到 question_list，更新会话文件
 
-stdin JSON 字段:
-  session_id, transcript_path, cwd, hook_event_name, source (SessionStart),
-  stop_hook_active, last_assistant_message (Stop)
+存储路径: <cwd>/.claude/.user-session/current-session.json
 """
 
 import json
@@ -16,21 +14,11 @@ import os
 from datetime import datetime
 
 
-# 颜色定义
-GREEN = "\033[0;32m"
-BLUE = "\033[0;34m"
-YELLOW = "\033[1;33m"
-CYAN = "\033[0;36m"
-NC = "\033[0m"
-BOLD = "\033[1m"
-
-# 日志文件
 LOG_DIR = os.path.join(os.path.expanduser("~"), ".claude-code")
 LOG_FILE = os.path.join(LOG_DIR, "session-guard.log")
 
 
 def log(msg):
-    """写入日志文件"""
     try:
         os.makedirs(LOG_DIR, exist_ok=True)
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -41,7 +29,6 @@ def log(msg):
 
 
 def read_stdin():
-    """从 stdin 读取 Claude Code 传入的 JSON 数据"""
     try:
         raw = sys.stdin.read()
         return json.loads(raw) if raw.strip() else {}
@@ -50,14 +37,20 @@ def read_stdin():
         return {}
 
 
-def get_session_file(cwd):
-    """获取当前目录下的 current-session.json 路径"""
+def get_session_dir(cwd):
     expanded = os.path.expanduser(cwd) if cwd else os.getcwd()
-    return os.path.join(expanded, "current-session.json")
+    return os.path.join(expanded, ".claude", ".user-session")
 
 
-def read_session(path):
-    """读取已有的会话文件"""
+def get_current_session_path(cwd):
+    return os.path.join(get_session_dir(cwd), "current-session.json")
+
+
+def get_last_session_path(cwd):
+    return os.path.join(get_session_dir(cwd), "last-session.json")
+
+
+def read_json(path):
     try:
         with open(path) as f:
             return json.load(f)
@@ -65,19 +58,24 @@ def read_session(path):
         return None
 
 
-def write_session(path, data):
-    """写入会话文件"""
+def write_json(path, data):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
-def extract_last_user_message(transcript_path):
-    """从 transcript JSONL 文件提取用户最后一条消息"""
-    if not transcript_path or not os.path.isfile(transcript_path):
-        log(f"transcript not found: {transcript_path}")
-        return ""
+def is_claude_command(msg):
+    """判断是否为 Claude Code 斜杠命令（如 /compact, /clear 等）"""
+    s = msg.strip()
+    return s.startswith("/") and " " not in s and len(s) < 20
 
-    last_msg = ""
+
+def extract_user_messages(transcript_path):
+    """从 transcript JSONL 提取用户消息，排除斜杠命令"""
+    if not transcript_path or not os.path.isfile(transcript_path):
+        return []
+
+    messages = []
     try:
         with open(transcript_path) as f:
             for line in f:
@@ -85,117 +83,104 @@ def extract_last_user_message(transcript_path):
                     obj = json.loads(line)
                     if obj.get("type") == "user":
                         content = obj.get("message", {}).get("content")
-                        if isinstance(content, str):
-                            last_msg = content
+                        if isinstance(content, str) and content.strip():
+                            msg = content.strip()
+                            if not is_claude_command(msg):
+                                messages.append(msg)
                 except Exception:
                     pass
     except Exception as e:
         log(f"transcript read error: {e}")
-    return last_msg[:200]
+    return messages
 
 
 def handle_session_start(data):
-    """处理 SessionStart 事件
-
-    - 如果 current-session.json 存在，通过 additionalContext 让 Claude 询问用户是否复用
-    - 如果不存在，创建初始会话文件
-    """
     cwd = data.get("cwd", os.getcwd())
     session_id = data.get("session_id", "unknown")
     source = data.get("source", "unknown")
 
-    log(f"SessionStart triggered, cwd={cwd}, session={session_id}, source={source}")
+    log(f"SessionStart: cwd={cwd}, session={session_id}, source={source}")
 
-    session_file = get_session_file(cwd)
-    existing = read_session(session_file)
+    session_dir = get_session_dir(cwd)
+    current_path = get_current_session_path(cwd)
+    last_path = get_last_session_path(cwd)
+
+    existing = read_json(current_path)
+
+    if existing and existing.get("session_id") != session_id:
+        # 新会话，归档旧会话
+        log(f"new session detected, archiving old session (old={existing.get('session_id')})")
+        os.makedirs(session_dir, exist_ok=True)
+        if os.path.exists(last_path):
+            os.remove(last_path)
+        os.rename(current_path, last_path)
+        existing = None
 
     if existing:
-        prev_msg = existing.get("last_user_message", "")
-        prev_time = existing.get("timestamp", "")
-        prev_status = existing.get("status", "")
-        resume_count = existing.get("resume_count", 0)
-        prev_assistant = existing.get("last_assistant_message", "")
-        work_dir = existing.get("working_directory", "")
-
-        log(f"found existing session: status={prev_status}, resume_count={resume_count}, msg={prev_msg[:40]}")
-
-        # 更新 resume 计数
-        new_count = resume_count + 1
-        existing["resume_count"] = new_count
+        # 同一会话恢复（如 /compact），静默更新时间
         existing["last_resumed_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        write_session(session_file, existing)
-
-        # 通过 additionalContext 注入上下文，让 Claude 在对话中主动询问用户
-        status_desc = "已完成" if prev_status == "completed" else "未完成"
-        context = (
-            f"[session-guard] 检测到当前目录存在上次的会话记录（{status_desc}）。\n"
-            f"- 上次提问: {prev_msg}\n"
-            f"- 上次回复摘要: {prev_assistant[:200] if prev_assistant else '无'}\n"
-            f"- 时间: {prev_time}\n"
-            f"- 已恢复次数: {new_count}\n"
-            f"- 工作目录: {work_dir}\n\n"
-            f"请你用中文直接询问用户：「是否继续上次的对话？如果继续，我将基于之前的上下文继续工作；如果不需要，我们将开始全新的对话。」\n"
-            f"等待用户回答后再继续。如果用户选择继续，请基于以上上下文恢复工作。"
-        )
-
-        log(f"returning additionalContext for resume (resume_count={new_count})")
-        return {"additionalContext": context}
+        write_json(current_path, existing)
+        log(f"same session resumed, updated timestamp")
     else:
-        # 首次进入，创建初始会话文件
-        log(f"no existing session found, creating new one at {session_file}")
-
+        # 创建新会话文件
+        os.makedirs(session_dir, exist_ok=True)
         session_data = {
+            "session_id": session_id,
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "working_directory": cwd.replace(os.environ.get("HOME", ""), "~", 1),
-            "session_id": session_id,
-            "last_user_message": "",
-            "resume_count": 0,
+            "question_list": [],
         }
+        write_json(current_path, session_data)
+        log(f"new session file created")
 
-        if data:
-            session_data["raw_input"] = data
-
-        write_session(session_file, session_data)
-        log(f"session file created (first visit)")
-        return None
+    return None
 
 
 def handle_stop(data):
-    """处理 Stop 事件：更新 current-session.json"""
     cwd = data.get("cwd", os.getcwd())
     session_id = data.get("session_id", "unknown")
     transcript_path = data.get("transcript_path", "")
     stop_hook_active = data.get("stop_hook_active", False)
 
-    log(f"Stop event triggered, cwd={cwd}, session={session_id}, stop_hook_active={stop_hook_active}")
+    log(f"Stop: cwd={cwd}, session={session_id}")
 
-    # 防止无限循环
     if stop_hook_active:
-        log("skipping: stop_hook_active=True (prevent loop)")
+        log("skipping: stop_hook_active=True")
         return None
 
-    session_file = get_session_file(cwd)
+    current_path = get_current_session_path(cwd)
+    existing = read_json(current_path)
 
-    # 提取用户最后消息和 assistant 最后消息
-    last_user_msg = extract_last_user_message(transcript_path)
-    last_assistant_msg = data.get("last_assistant_message", "")
+    # 从 transcript 提取用户消息，追加到 question_list
+    user_messages = extract_user_messages(transcript_path)
+    existing_questions = existing.get("question_list", []) if existing else []
 
-    session_data = {
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "working_directory": cwd.replace(os.environ.get("HOME", ""), "~", 1),
-        "session_id": session_id,
-        "last_user_message": last_user_msg,
-        "last_assistant_message": last_assistant_msg[:500] if last_assistant_msg else "",
-        "status": "completed",
-    }
+    # 只追加新问题（基于内容去重）
+    existing_set = set(existing_questions)
+    new_questions = [m for m in user_messages if m not in existing_set]
 
-    # 保留 resume_count（如果之前有）
-    existing = read_session(session_file)
+    MAX_QUESTIONS = 5
+
     if existing:
-        session_data["resume_count"] = existing.get("resume_count", 0)
+        # 合并新问题，只保留最后 MAX_QUESTIONS 条
+        all_questions = existing_questions + new_questions
+        existing["question_list"] = all_questions[-MAX_QUESTIONS:]
+        existing["last_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        write_json(current_path, existing)
+        log(f"session updated: +{len(new_questions)} questions, total={len(existing['question_list'])}")
+    else:
+        # Stop 时文件不存在，创建
+        os.makedirs(os.path.dirname(current_path), exist_ok=True)
+        session_data = {
+            "session_id": session_id,
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "working_directory": cwd.replace(os.environ.get("HOME", ""), "~", 1),
+            "question_list": new_questions[-MAX_QUESTIONS:],
+            "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        write_json(current_path, session_data)
+        log(f"session file created on Stop: {len(new_questions)} questions")
 
-    write_session(session_file, session_data)
-    log(f"session updated: status=completed, user_msg={last_user_msg[:40]}, asst_msg={last_assistant_msg[:40]}")
     return None
 
 
@@ -213,13 +198,12 @@ def main():
         log(f"unknown event: {event}")
         result = None
 
-    # Claude Code hooks 通过 stdout 读取 JSON 输出
     if result:
         output = json.dumps(result, ensure_ascii=False)
-        log(f"returning additionalContext ({len(output)} bytes)")
+        log(f"returning output ({len(output)} bytes)")
         print(output)
     else:
-        log("no output (no additionalContext)")
+        log("no output")
 
 
 if __name__ == "__main__":
