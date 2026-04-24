@@ -6,3 +6,5 @@ dist/
 .history
 .claude
 docs
+__pycache__/
+*.pyc
