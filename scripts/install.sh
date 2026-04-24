@@ -52,11 +52,12 @@ fi
 
 # 2. 扫描并安装所有脚本（符号链接方式）
 echo ""
-echo -e "${YELLOW}[2/4] 安装脚本到 $EXTEND_DIR (符号链接)...${NC}"
+echo -e "${YELLOW}[2/4] 安装脚本 (符号链接)...${NC}"
 
 INSTALLED_COUNT=0
 FAILED_COUNT=0
 
+# --- 安装 hooks/agents/tools 到 ~/.claude-extend/ ---
 for TYPE_DIR in hooks agents tools; do
   TYPE_PATH="$REPO_DIR/packages/$TYPE_DIR"
   [ ! -d "$TYPE_PATH" ] && continue
@@ -101,13 +102,42 @@ for TYPE_DIR in hooks agents tools; do
   done
 done
 
+# --- 安装 skills 到 ~/.claude/skills/ ---
+SKILLS_PATH="$REPO_DIR/packages/skills"
+if [ -d "$SKILLS_PATH" ]; then
+  for SKILL_DIR in "$SKILLS_PATH"/*/; do
+    [ ! -d "$SKILL_DIR" ] && continue
+
+    SKILL_NAME=$(basename "$SKILL_DIR")
+
+    # skills 必须包含 SKILL.md
+    if [ ! -f "$SKILL_DIR/SKILL.md" ]; then
+      echo -e "${RED}  跳过 skill $SKILL_NAME: 未找到 SKILL.md${NC}"
+      FAILED_COUNT=$((FAILED_COUNT + 1))
+      continue
+    fi
+
+    # 创建符号链接到 ~/.claude/skills/
+    DEST_DIR="$CLAUDE_DIR/skills/$SKILL_NAME"
+    mkdir -p "$(dirname "$DEST_DIR")"
+
+    if [ -L "$DEST_DIR" ] || [ -d "$DEST_DIR" ]; then
+      rm -rf "$DEST_DIR"
+    fi
+
+    ln -s "$SKILL_DIR" "$DEST_DIR"
+    echo -e "${GREEN}  ✓ skills/$SKILL_NAME -> $SKILL_DIR${NC}"
+    INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+  done
+fi
+
 # 3. 更新 settings.json
 echo ""
 echo -e "${YELLOW}[3/4] 更新 settings.json...${NC}"
 
 # 用 python3 安全合并 hooks 配置
 python3 -c "
-import json, os, glob, re
+import json, os, re
 
 settings_file = os.path.expanduser('$SETTINGS_FILE')
 extend_dir = os.path.expanduser('$EXTEND_DIR')
@@ -160,7 +190,14 @@ if os.path.isdir(hooks_dir):
 
         events = [e.strip() for e in metadata['event'].split(',') if e.strip()]
         matcher = metadata.get('matcher', '')
-        command = f'bash {script_dir}/{entry_file}'
+
+        # 根据入口脚本类型决定启动命令
+        if entry_file.endswith('.py'):
+            command = f'python3 {script_dir}/{entry_file}'
+        elif entry_file.endswith('.ts'):
+            command = f'npx tsx {script_dir}/{entry_file}'
+        else:
+            command = f'bash {script_dir}/{entry_file}'
 
         for idx, event in enumerate(events):
             # matcher 仅应用于第一个事件，其余事件 matcher 为空
@@ -184,7 +221,7 @@ if os.path.isdir(hooks_dir):
                 'hooks': [{'type': 'command', 'command': command}]
             })
 
-            print(f'  {event}: {name}{" [matcher=" + event_matcher + "]" if event_matcher else ""}')
+            print(f'  {event}: {name}{\" [matcher=\" + event_matcher + \"]\" if event_matcher else \"\"}')
 
 # 写回
 with open(settings_file, 'w') as f:
@@ -203,8 +240,16 @@ echo ""
 echo -e "${YELLOW}[4/4] 验证安装${NC}"
 
 if [ -d "$EXTEND_DIR/hooks" ]; then
+  echo -e "${BLUE}  Hooks:${NC}"
   for d in "$EXTEND_DIR/hooks"/*/; do
-    [ -d "$d" ] && echo -e "${GREEN}  ✓ $(basename "$d")${NC}"
+    [ -d "$d" ] && echo -e "${GREEN}    ✓ $(basename "$d")${NC}"
+  done
+fi
+
+if [ -d "$CLAUDE_DIR/skills" ]; then
+  echo -e "${BLUE}  Skills:${NC}"
+  for d in "$CLAUDE_DIR/skills"/*/; do
+    [ -d "$d" ] && echo -e "${GREEN}    ✓ $(basename "$d")${NC}"
   done
 fi
 
