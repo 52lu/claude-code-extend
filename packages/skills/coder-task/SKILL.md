@@ -1,6 +1,6 @@
 ---
 name: coder-task
-description: Use when receiving a development task or feature request that needs a structured implementation plan. Triggers on requests like "帮我开发", "实现功能", "新增模块", "写个接口", "开发任务", or any coding task that requires planning before implementation. Use for tasks ranging from simple features to complex multi-component features.
+description: Use when receiving a development task or feature request that needs a structured implementation plan. Triggers on requests like "帮我开发", "实现功能", "新增模块", "写个接口", "开发任务", or any coding task that requires planning before implementation. Use for tasks ranging from simple features to complex multi-component features. All knowledge search must use web-access skill exclusively.
 ---
 
 # Coder Task
@@ -29,6 +29,27 @@ digraph coder_task {
     "计划通过" -> "调用 writing-plans\n编写计划" [label="不通过\n修正计划"];
 }
 ```
+
+## 知识搜索规则
+
+**当任务执行过程中需要搜索相关知识时，只使用 `web-access` skill 进行搜索。**
+
+**禁止的搜索方式：**
+- 禁止使用 WebSearch 工具
+- 禁止使用 WebFetch 工具
+- 禁止使用 curl 直接抓取网页
+
+**唯一允许的方式：** 调用 `web-access` skill，由其根据场景自动选择最优联网工具。
+
+**适用场景：**
+- 需要搜索技术方案、最佳实践
+- 需要查阅 API 文档、官方文档
+- 需要了解库/框架的用法
+- 任何需要联网获取信息的场景
+
+**不适用场景：**
+- 仅需读取本地项目文件、代码 — 直接用 Read/grep
+- 无需联网的纯逻辑推理 — 直接分析
 
 ## Step 1: 复杂度判断
 
@@ -103,6 +124,7 @@ digraph coder_task {
 - 只读了项目级 CLAUDE.md 忽略用户级 → 用户级优先
 - 计划中包含自动 git commit 步骤 → 删除自动提交
 - 计划提交信息包含 Co-Authored-By → 删除
+- 使用 WebSearch/WebFetch/curl 搜索知识 → 必须使用 web-access skill
 
 ## Common Mistakes
 
@@ -113,3 +135,4 @@ digraph coder_task {
 | 审查 CLAUDE.md 时遗漏用户级文件 | 用户级优先于项目级 |
 | 审查不通过但直接输出 | 必须修正后重新审查 |
 | 计划中包含 git 自动提交 | CLAUDE.md 禁止自动提交，删除该步骤 |
+| 使用 WebSearch/WebFetch 搜索知识 | 必须通过 web-access skill 进行所有联网搜索 |
