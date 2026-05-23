@@ -152,7 +152,6 @@ func Process(ctx context.Context, req *Request) error {
 ## 单元测试规范
 
 ### 1. 测试文件位置
-- 所有测试统一写在 `tests/` 目录下，禁止业务包内零散 `_test.go`
 - 命名`xxx_test.go`，与被测模块对应
 
 ### 2. 项目初始化
