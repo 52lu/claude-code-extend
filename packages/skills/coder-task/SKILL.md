@@ -1,11 +1,11 @@
 ---
 name: coder-task
-description: Use when receiving a development task or feature request that needs a structured implementation plan, OR a bug/issue that needs investigation and fixing. Triggers on requests like "帮我开发", "实现功能", "新增模块", "写个接口", "修复bug", "排查问题", "报错了", "异常", or any coding task requiring structured approach. Bug tasks route to systematic-debugging skill. All knowledge search must use web-access skill exclusively.
+description: Use when receiving a development task or feature request that needs a structured implementation plan, OR a bug/issue that needs investigation and fixing. Triggers on requests like "帮我开发", "实现功能", "新增模块", "写个接口", "修复bug", "排查问题", "报错了", "异常", or any coding task requiring structured approach. Bug tasks route to superpowers:systematic-debugging skill. All knowledge search must use web-access skill exclusively.
 ---
 
 # Coder Task
 
-收到编码任务后，先判断任务类型再走对应流程：bug 排查走 `systematic-debugging`，功能开发走结构化计划流程。确保不同类型任务使用正确的方法论。
+收到编码任务后，先判断任务类型再走对应流程：bug 排查走 `superpowers:systematic-debugging`，功能开发走结构化计划流程。确保不同类型任务使用正确的方法论。
 
 ## 核心流程
 
@@ -13,7 +13,9 @@ description: Use when receiving a development task or feature request that needs
 digraph coder_task {
     "收到编码任务" [shape=doublecircle];
     "任务类型判断" [shape=diamond];
-    "调用 systematic-debugging\n排查并修复" [shape=box];
+    "调用 superpowers:systematic-debugging\n排查根因" [shape=box];
+    "输出根因分析\n等待用户确认" [shape=box];
+    "用户确认后\n修复代码" [shape=box];
     "任务复杂度判断" [shape=diamond];
     "调用 brainstorming\n分析需求" [shape=box];
     "调用 writing-plans\n编写计划" [shape=box];
@@ -22,8 +24,11 @@ digraph coder_task {
     "输出最终结果" [shape=doublecircle];
 
     "收到编码任务" -> "任务类型判断";
-    "任务类型判断" -> "调用 systematic-debugging\n排查并修复" [label="Bug排查"];
+    "任务类型判断" -> "调用 superpowers:systematic-debugging\n排查根因" [label="Bug排查"];
     "任务类型判断" -> "任务复杂度判断" [label="功能开发"];
+    "调用 superpowers:systematic-debugging\n排查根因" -> "输出根因分析\n等待用户确认";
+    "输出根因分析\n等待用户确认" -> "用户确认后\n修复代码";
+    "用户确认后\n修复代码" -> "输出最终结果";
     "任务复杂度判断" -> "调用 brainstorming\n分析需求" [label="复杂"];
     "任务复杂度判断" -> "调用 writing-plans\n编写计划" [label="简单"];
     "调用 brainstorming\n分析需求" -> "调用 writing-plans\n编写计划";
@@ -31,8 +36,7 @@ digraph coder_task {
     "审查计划符合\nCLAUDE.md" -> "计划通过";
     "计划通过" -> "输出最终结果" [label="通过"];
     "计划通过" -> "调用 writing-plans\n编写计划" [label="不通过\n修正计划"];
-    "调用 systematic-debugging\n排查并修复" -> "输出最终结果";
-}
+    }
 ```
 
 ## Step 0: 任务类型判断
@@ -50,13 +54,22 @@ digraph coder_task {
 ### 判断规则
 
 1. **明确的关键词匹配** → 直接分类
-2. **混合信号**（如"修复接口并增加新字段"）→ 拆分为两个子任务：bug 部分走 systematic-debugging，新功能部分走功能开发流程
+2. **混合信号**（如"修复接口并增加新字段"）→ 拆分为两个子任务：bug 部分走 superpowers:systematic-debugging，新功能部分走功能开发流程
 3. **无法判断** → 向用户确认任务类型，不要猜测
 
 ### 路由结果
 
-- **Bug 排查** → 跳转 `systematic-debugging` skill（**REQUIRED SUB-SKILL**），完成排查修复后输出结果
+- **Bug 排查** → 调用 `superpowers:systematic-debugging` skill（**REQUIRED SUB-SKILL**）定位根因，**输出根因分析后暂停，等待用户确认修复方案后再改代码**
 - **功能开发** → 进入 Step 1 继续功能开发流程
+
+### Bug 排查确认机制
+
+**铁律：先说原因，不改代码。等用户说"改"再改。**
+
+1. **排查阶段** — 使用 `superpowers:systematic-debugging` 定位根因，此阶段只读代码、读日志、分析证据，**禁止修改任何文件**
+2. **输出根因** — 向用户完整报告：根因是什么、在哪个文件哪行、为什么导致了 bug、建议的修复方案
+3. **等待确认** — 明确询问用户："以上分析是否正确？是否按此方案修复？"
+4. **用户确认后** — 才开始修改代码实现修复
 
 ## 依赖检查
 
@@ -64,7 +77,7 @@ coder-task 依赖以下 skill，触发时**必须**先检查是否可用：
 
 | 依赖 skill | 来源 | 用途 | 检查方式 |
 |------------|------|------|---------|
-| `systematic-debugging` | `~/.claude/skills/` 或 superpowers 插件 | Bug 排查流程 | `ls ~/.claude/skills/systematic-debugging/SKILL.md` |
+| `superpowers:systematic-debugging` | superpowers 插件 | Bug 排查流程 | `ls ~/.claude/plugins/cache/claude-plugins-official/superpowers/*/skills/systematic-debugging/SKILL.md` |
 | `web-access` | `~/.claude/skills/` 或 `~/.agents/skills/` | 联网搜索 | `ls ~/.claude/skills/web-access/SKILL.md` |
 | `superpowers:brainstorming` | superpowers 插件 | 复杂任务需求分析 | `ls ~/.claude/plugins/cache/claude-plugins-official/superpowers/*/skills/brainstorming/SKILL.md` |
 | `superpowers:writing-plans` | superpowers 插件 | 编写实现计划 | `ls ~/.claude/plugins/cache/claude-plugins-official/superpowers/*/skills/writing-plans/SKILL.md` |
@@ -77,7 +90,15 @@ coder-task 依赖以下 skill，触发时**必须**先检查是否可用：
 
 ### 安装指引
 
-**缺失 `systematic-debugging` 或 `web-access`**（本地 skill）：
+**缺失 `superpowers:systematic-debugging`、`superpowers:brainstorming` 或 `superpowers:writing-plans`**（插件 skill）：
+```
+这些 skill 来自 superpowers 插件，需要：
+1. 确认已安装 superpowers 插件
+2. 运行 /install-superpowers 或在 Claude Code 设置中启用该插件
+3. 插件安装后，skill 会自动注册到可用列表
+```
+
+**缺失 `web-access`**（本地 skill）：
 ```bash
 # 方式一：如果有 claude-extend 仓库，重新运行安装脚本
 cd <claude-code-extend 仓库路径> && bash scripts/install.sh
@@ -86,18 +107,10 @@ cd <claude-code-extend 仓库路径> && bash scripts/install.sh
 ln -s <skill 源路径> ~/.claude/skills/<skill-name>
 ```
 
-**缺失 `superpowers:brainstorming` 或 `superpowers:writing-plans`**（插件 skill）：
-```
-这些 skill 来自 superpowers 插件，需要：
-1. 确认已安装 superpowers 插件
-2. 运行 /install-superpowers 或在 Claude Code 设置中启用该插件
-3. 插件安装后，skill 会自动注册到可用列表
-```
-
 ### 检查时机
 
 - **每次触发 coder-task 时**执行依赖检查
-- 路由到具体流程前确认对应依赖可用（如路由到 bug 排查前确认 systematic-debugging 可用）
+- 路由到具体流程前确认对应依赖可用（如路由到 bug 排查前确认 superpowers:systematic-debugging 可用）
 - 不要在依赖缺失的情况下继续执行，避免流程中断
 
 ## 知识搜索规则
@@ -189,9 +202,11 @@ ln -s <skill 源路径> ~/.claude/skills/<skill-name>
 
 - 未检查依赖 skill 是否可用就执行流程 → 必须先检查依赖
 - 依赖缺失但仍继续执行 → 停下来报告缺失并引导安装
+- Bug 排查时未输出根因就直接改代码 → 先输出根因分析，等用户确认后再改
+- Bug 排查排查阶段就修改文件 → 排查阶段只读不改，确认后才能改代码
 - 跳过任务类型判断直接写计划 → 必须先判断是 bug 还是功能
-- Bug 排查任务走了功能开发流程 → 必须路由到 systematic-debugging
-- 功能开发任务走了 systematic-debugging → 确认分类是否正确
+- Bug 排查任务走了功能开发流程 → 必须路由到 superpowers:systematic-debugging
+- 功能开发任务走了 superpowers:systematic-debugging → 确认分类是否正确
 - 混合任务只走了一条流程 → 拆分为 bug 修复 + 功能开发两个子任务
 - 跳过复杂度判断直接写计划 → 必须先判断
 - 复杂任务跳过 brainstorming → 复杂任务必须分析需求
@@ -208,8 +223,10 @@ ln -s <skill 源路径> ~/.claude/skills/<skill-name>
 |------|------|
 | 未检查依赖就执行，到一半发现 skill 不可用 | 每次触发时先检查所有依赖 skill 是否已安装 |
 | 依赖缺失时自行跳过或降级处理 | 停下来报告缺失，引导用户安装后再继续 |
-| Bug 排查走功能开发流程写实现计划 | Bug 必须路由到 systematic-debugging，先找根因再修复 |
-| 功能开发走 systematic-debugging | 功能开发应走 brainstorming → writing-plans 流程 |
+| Bug 排查走功能开发流程写实现计划 | Bug 必须路由到 superpowers:systematic-debugging，先找根因再修复 |
+| Bug 排查未等确认就直接改代码 | 先输出根因分析和修复方案，等用户确认后再改代码 |
+| Bug 排查排查阶段修改文件 | 排查阶段只读代码/日志，不改任何文件 |
+| 功能开发走 superpowers:systematic-debugging | 功能开发应走 brainstorming → writing-plans 流程 |
 | 混合任务只处理一部分 | 拆分为 bug 修复 + 功能开发，分别走对应流程 |
 | 无法判断任务类型时猜测 | 向用户确认任务类型 |
 | 所有任务都走 brainstorming | 简单任务直接写计划，节约时间 |
