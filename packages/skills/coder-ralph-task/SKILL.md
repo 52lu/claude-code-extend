@@ -1,4 +1,4 @@
----
+coder-ralph-task---
 name: coder-ralph-task
 description: Use when setting up Ralph automated development tasks across various scenarios - new project, existing project, PRD import, bug fix, refactoring, or CI setup. Triggers on "Ralph自动化", "设置Ralph任务", "新建Ralph项目", "Ralph修bug", "Ralph重构", "ralph-import", "ralph任务配置".
 ---
@@ -181,7 +181,7 @@ Output <promise>COMPLETE</promise> when all tasks are done.
 
 | 文件 | 内容 |
 |------|------|
-| `.ralph/PROMPT.md` | 活跃任务需求 + 项目约束 + RALPH_STATUS 格式要求 |
+| `.ralph/PROMPT.md` | 活跃任务需求 + 项目约束 + RALPH_STATUS 格式要求 + **即时任务标记规则** |
 | `.ralph/fix_plan.md` | 仅未完成任务（按优先级），Completed 归档 |
 | `.ralph/AGENT.md` | 构建/测试/质量命令，Git 工作流 |
 | `.ralphrc` | 项目配置（类型、权限、熔断器参数） |
