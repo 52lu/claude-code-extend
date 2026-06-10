@@ -13,6 +13,55 @@ description: Use when setting up Ralph automated development tasks across variou
 
 核心优化：**已完成任务归档，不占用循环上下文**。
 
+## 前置检查：.ralphrc 配置
+
+**在场景路由之前，必须先检查项目根目录是否存在 `.ralphrc` 文件。**
+
+### 检查流程
+
+```dot
+digraph ralphrc_check {
+    "Skill 触发" [shape=doublecircle];
+    "项目根有 .ralphrc?" [shape=diamond];
+    "读取并验证 .ralphrc" [shape=box];
+    "从模板复制 .ralphrc" [shape=box];
+    "填充 PROJECT_NAME" [shape=box];
+    "确认 PROJECT_TYPE" [shape=box];
+    "进入场景路由" [shape=box];
+
+    "Skill 触发" -> "项目根有 .ralphrc?";
+    "项目根有 .ralphrc?" -> "读取并验证 .ralphrc" [label="是"];
+    "项目根有 .ralphrc?" -> "从模板复制 .ralphrc" [label="否"];
+    "从模板复制 .ralphrc" -> "填充 PROJECT_NAME";
+    "填充 PROJECT_NAME" -> "确认 PROJECT_TYPE";
+    "确认 PROJECT_TYPE" -> "进入场景路由";
+    "读取并验证 .ralphrc" -> "进入场景路由";
+}
+```
+
+### 具体步骤
+
+1. **检查 `.ralphrc` 是否存在** — 读取项目根目录下的 `.ralphrc`
+2. **不存在时**：
+   - 读取本 skill 目录下的 `.ralphrc` 模板文件
+   - 复制到项目根目录
+   - **自动填充 `PROJECT_NAME`**：取项目根目录名（`basename $(pwd)`）
+   - **询问 `PROJECT_TYPE`**：通过 AskUserQuestion 让用户从 `typescript | python | rust | go | generic` 中选择
+   - 用用户选择的值替换模板中的 `PROJECT_TYPE`
+3. **已存在时**：
+   - 验证 `PROJECT_NAME` 和 `PROJECT_TYPE` 是否已填充且非模板占位符（非 `xxxxx` / `xxx`）
+   - 如仍是占位符，按上述步骤补充填充
+
+### 项目类型选项
+
+| PROJECT_TYPE | 适用场景 |
+|-------------|---------|
+| `typescript` | Node.js / React / Vue / Next.js 等 JS/TS 项目 |
+| `python` | Python / Django / FastAPI / Flask 等 |
+| `rust` | Rust 项目 |
+| `go` | Go 项目 |
+| `generic` | 其他类型或混合项目 |
+
 ## 场景路由
 
 ```dot
@@ -400,6 +449,8 @@ CB_COOLDOWN_MINUTES=30
 
 ## Red Flags
 
+- 未执行 .ralphrc 前置检查就开始场景路由 → 必须先检查并确保 .ralphrc 存在且已填充
+- .ralphrc 中 PROJECT_NAME/PROJECT_TYPE 仍是模板占位符 → 必须补充填充
 - 未判断场景就生成文件 → 必须先路由场景
 - 需求模糊但跳过采集 → 有疑问就走内置采集流程（仅提问）
 - PRD 未经用户审批 → 必须获得批准
