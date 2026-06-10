@@ -193,9 +193,9 @@ digraph ralph_task {
 
 ### 1. PRD 生成
 
-**REQUIRED SUB-SKILL:** 使用 `prd-creator`。
+**REQUIRED SUB-SKILL:** 使用 `coder-ralph-prd`。
 
-1. 读取 prd-creator 的 PRD.md / JSON.md 子文件
+1. 读取 coder-ralph-prd 的 PRD.md / JSON.md 子文件
 2. 结构化提问收集需求 → 生成 PRD.md 到 `.agent/prd/`
 3. 生成 SUMMARY.md 到 `.agent/prd/`
 4. 用户审批后 → 生成 tasks.json 到 `.agent/`
