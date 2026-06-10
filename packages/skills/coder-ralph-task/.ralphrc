@@ -1,0 +1,41 @@
+# .ralphrc - Ralph 项目配置文件
+# 生成工具: ralph-setup
+# 文档地址: https://github.com/frankbria/ralph-claude-code
+
+# 项目标识
+PROJECT_NAME="xxxxx"
+PROJECT_TYPE="xxx"
+
+# Claude Code CLI 命令
+CLAUDE_CODE_CMD="claude"
+
+# 循环调用设置
+MAX_CALLS_PER_HOUR=1000             # 提高调用频率上限
+CLAUDE_TIMEOUT_MINUTES=20           # 单次调用超时（复杂任务需更长时间）
+CLAUDE_OUTPUT_FORMAT="json"
+# 每小时 Token 用量上限 (0 = 不限制)
+MAX_TOKENS_PER_HOUR=0
+
+# 工具权限配置 — 最大开放权限
+# 包含：文件操作、搜索、进程管理、包管理、测试、数据库、容器
+ALLOWED_TOOLS="Write,Read,Edit,Agent,LSP,AskUserQuestion,TaskCreate,TaskUpdate,TaskList,TaskGet,Bash(git *),Bash(npm *),Bash(npx *),Bash(pip *),Bash(pip3 *),Bash(python *),Bash(python3 *),Bash(pytest *),Bash(uvicorn *),Bash(alembic *),Bash(mkdir *),Bash(cat *),Bash(ls *),Bash(find *),Bash(cp *),Bash(mv *),Bash(touch *),Bash(cd *),Bash(ln *),Bash(chmod *),Bash(rm *),Bash(rmdir *),Bash(grep *),Bash(rg *),Bash(sed *),Bash(awk *),Bash(wc *),Bash(echo *),Bash(head *),Bash(tail *),Bash(sort *),Bash(uniq *),Bash(tr *),Bash(cut *),Bash(tee *),Bash(xargs *),Bash(jq *),Bash(which *),Bash(env *),Bash(type *),Bash(file *),Bash(stat *),Bash(du *),Bash(df *),Bash(date *),Bash(curl *),Bash(wget *),Bash(tar *),Bash(zip *),Bash(unzip *),Bash(docker *),Bash(docker-compose *),Bash(pg_dump *),Bash(psql *),Bash(createdb *),Bash(export *),Bash(source *),Bash(eval *),Bash(sh *),Bash(bash *),Bash(pnpm *),Bash(yarn *)"
+
+# 会话管理
+SESSION_CONTINUITY=true
+SESSION_EXPIRY_HOURS=48             # 延长会话有效期
+
+# 任务来源
+TASK_SOURCES="local"
+GITHUB_TASK_LABEL="ralph-task"
+BEADS_FILTER="status:open"
+
+# 熔断器阈值配置 — 适当放宽，避免过早触发
+CB_NO_PROGRESS_THRESHOLD=100        # 连续无进展次数（降低，快速识别卡住）
+CB_SAME_ERROR_THRESHOLD=10         # 连续相同错误次数（降低，快速识别循环错误）
+CB_OUTPUT_DECLINE_THRESHOLD=60     # 输出质量下降百分比阈值
+
+# 启动时自动更新 Claude CLI
+#CLAUDE_AUTO_UPDATE=true
+
+# Shell 初始化文件
+RALPH_SHELL_INIT_FILE="~/.zshrc"
