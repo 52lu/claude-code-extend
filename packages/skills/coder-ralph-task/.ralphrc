@@ -3,8 +3,8 @@
 # 文档地址: https://github.com/frankbria/ralph-claude-code
 
 # 项目标识
-PROJECT_NAME="xxxxx"
-PROJECT_TYPE="xxx"
+PROJECT_NAME="aiproxy"
+PROJECT_TYPE="go"
 
 # Claude Code CLI 命令
 CLAUDE_CODE_CMD="claude"

@@ -22,7 +22,7 @@
 
 ## 类型标注
 
-- **禁止 `any`**：用 `unknown` 替代，必须显式类型收窄
+- **禁止滥用 `any`**：优先 `unknown` + 类型收窄，第三方库类型不完整时可临时用 `any` 并加 `// TODO: 补充类型` 注释
 - 公开 API 函数必须声明返回类型
 - 对象形状用 `interface`，联合类型/复杂类型用 `type`
 - 使用 `satisfies` 校验对象同时保留字面量类型
@@ -93,6 +93,19 @@ function handleState<T>(state: AsyncState<T>): void {
 
 ## 函数规范
 
+### 注释模板
+```typescript
+/**
+ * 函数功能描述
+ * @param paramName - 参数说明
+ * @returns 返回值说明
+ */
+async function createUser(options: CreateUserOptions): Promise<User> {
+  // ...
+}
+```
+
+### 入参与返回
 - 参数不超过 5 个，超出用 interface/object 封装
 - 返回值不超过 3 个，超出封装结构体
 - 纯计算函数不依赖外部状态
@@ -115,6 +128,8 @@ async function createUser(options: CreateUserOptions): Promise<User> {
 - 禁止冗余设计：不预留字段/方法/接口/抽象层
 - 禁止未使用变量/导入（依赖 lint 工具检测）
 - 禁止注释掉代码块：直接删除，需时从 git 恢复
+- 禁止 `TODO`/`FIXME` 长期残留
+- 同一逻辑不写两遍：第二次提取函数，第三次考虑泛型/抽象
 - 函数体≤50行，嵌套≤3层（用卫语句 early return）
 - 禁止无意义中间变量：直接返回表达式
 
@@ -135,7 +150,9 @@ function process(data: unknown): Result {
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
-    "exactOptionalPropertyTypes": true,
+    // exactOptionalPropertyTypes: 可选属性不允许显式赋 undefined，
+    // 仅在团队明确需要此约束时启用，多数项目建议关闭
+    "exactOptionalPropertyTypes": false,
     "noPropertyAccessFromIndexSignature": true
   }
 }

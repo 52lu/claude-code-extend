@@ -8,7 +8,7 @@
 |-------|---------|---------|
 | golang-pro | 项目初始化、目录调整、基础库引入 | 标准项目布局(`/cmd`,`/pkg`)；必须传递`context.Context`；适配 Go 新特性与内存优化 |
 | golang-patterns | 业务逻辑、接口设计、并发任务 | 优先组合非继承；复杂对象用 Functional Options；并发用 Worker Pool；接口小而精 |
-| golang-testing | 提交前、修 Bug、新功能验证 ；`testify/assert`断言+`testify/mock`依赖；性能代码必须 Benchmark；修 Bug 先写失败用例；输出目录统一在`tests/`下 |
+| golang-testing | 提交前、修 Bug、新功能验证 | `testify/assert`断言+`testify/mock`依赖；性能代码必须 Benchmark；修 Bug 先写失败用例；输出目录统一在`tests/`下 |
 
 ## 命名
 
@@ -21,8 +21,8 @@
 ## 常量
 - 不要在代码中写硬编码，通过定义常量的方式进行使用；
 - 同样业务逻辑相关的常量，以常量组(const)的形式命名；
-- 不推荐使用itoa关键字，除非特殊情况
-- 命名使用驼峰，可导出
+- 不推荐滥用 iota 关键字，简单枚举场景可正常使用
+- 导出常量使用大驼峰（如 `ErrNotFound`），未导出常量使用小驼峰（如 `errNotFound`）
 - Header相关的常量，以Header为前缀，如HeaderUserId; 如果是引用其他库，则优先取引入库的常量；
 - 缓存相关的常量，以Cache为前缀
 - 错误相关的常量，以Err为前缀
