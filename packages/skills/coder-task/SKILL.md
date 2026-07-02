@@ -1,142 +1,190 @@
 ---
 name: coder-task
-description: Use when receiving a development task or feature request that needs a structured implementation plan, OR a bug/issue that needs investigation and fixing. Triggers on requests like "帮我开发", "实现功能", "新增模块", "写个接口", "修复bug", "排查问题", "报错了", "异常", or any coding task requiring structured approach. Bug tasks route to superpowers:systematic-debugging skill. All knowledge search must use web-access skill exclusively.
+description: Use when receiving a development task or feature request that needs a structured implementation plan, OR a bug/issue that needs investigation and fixing. Triggers on requests like "帮我开发", "实现功能", "新增模块", "写个接口", "修复bug", "排查问题", "报错了", "异常", or any coding task requiring structured approach. 当需求涉及页面 UI 或交互（如页面、组件、布局、样式、动画、表单交互、可视化展示）时，自动路由到 frontend-design skill。All knowledge search must use web-access skill exclusively.
 ---
 
 # Coder Task
 
-收到编码任务后，先判断任务类型再走对应流程：bug 排查走 `superpowers:systematic-debugging`，功能开发走结构化计划流程。确保不同类型任务使用正确的方法论。
+编码任务路由器：判断任务类型 → 走对应业务线。Bug 排查走业务线 A，功能开发走业务线 B。**功能开发中，凡涉及页面 UI 及交互的，必须自动调用 `frontend-design` skill。**
 
-## 核心流程
+## 主路由
 
 ```dot
 digraph coder_task {
     "收到编码任务" [shape=doublecircle];
     "任务类型判断" [shape=diamond];
-    "调用 superpowers:systematic-debugging\n排查根因" [shape=box];
-    "输出根因分析\n等待用户确认" [shape=box];
-    "用户确认后\n修复代码" [shape=box];
-    "任务复杂度判断" [shape=diamond];
-    "调用 brainstorming\n分析需求" [shape=box];
-    "调用 writing-plans\n编写计划" [shape=box];
-    "审查计划符合\nCLAUDE.md" [shape=box];
-    "计划通过" [shape=diamond];
-    "输出最终结果" [shape=doublecircle];
+    "业务线A: Bug排查" [shape=box];
+    "业务线B: 功能开发" [shape=box];
 
     "收到编码任务" -> "任务类型判断";
-    "任务类型判断" -> "调用 superpowers:systematic-debugging\n排查根因" [label="Bug排查"];
-    "任务类型判断" -> "任务复杂度判断" [label="功能开发"];
-    "调用 superpowers:systematic-debugging\n排查根因" -> "输出根因分析\n等待用户确认";
-    "输出根因分析\n等待用户确认" -> "用户确认后\n修复代码";
-    "用户确认后\n修复代码" -> "输出最终结果";
-    "任务复杂度判断" -> "调用 brainstorming\n分析需求" [label="复杂"];
-    "任务复杂度判断" -> "调用 writing-plans\n编写计划" [label="简单"];
-    "调用 brainstorming\n分析需求" -> "调用 writing-plans\n编写计划";
-    "调用 writing-plans\n编写计划" -> "审查计划符合\nCLAUDE.md";
-    "审查计划符合\nCLAUDE.md" -> "计划通过";
-    "计划通过" -> "输出最终结果" [label="通过"];
-    "计划通过" -> "调用 writing-plans\n编写计划" [label="不通过\n修正计划"];
-    }
+    "任务类型判断" -> "业务线A: Bug排查" [label="Bug排查"];
+    "任务类型判断" -> "业务线B: 功能开发" [label="功能开发"];
+}
 ```
-
-## Step 0: 任务类型判断
-
-收到编码任务后，**首先**判断任务类型，决定走哪条流程。
 
 ### 分类信号
 
 | 信号 | Bug 排查 | 功能开发 |
 |------|---------|---------|
-| 典型关键词 | 修复、bug、排查、报错、异常、crash、不生效、错误、失败、fix、debug、报错信息 | 开发、实现、新增、添加、接口、功能、模块、feat、create、add |
-| 任务性质 | 已有代码出了问题，需要定位原因并修复 | 需要编写新代码实现新能力 |
+| 典型关键词 | 修复、bug、排查、报错、异常、crash、不生效、错误、失败、fix、debug | 开发、实现、新增、添加、接口、功能、模块、feat、create、add |
+| 任务性质 | 已有代码出了问题 | 需要编写新代码 |
 | 用户意图 | "出了问题，帮我看看" | "帮我做个新功能" |
 
 ### 判断规则
 
-1. **明确的关键词匹配** → 直接分类
-2. **混合信号**（如"修复接口并增加新字段"）→ 拆分为两个子任务：bug 部分走 superpowers:systematic-debugging，新功能部分走功能开发流程
-3. **无法判断** → 向用户确认任务类型，不要猜测
+1. **明确关键词匹配** → 直接分类
+2. **混合信号**（如"修复接口并增加新字段"）→ 拆分为两个子任务，分别走对应业务线
+3. **无法判断** → 向用户确认，不要猜测
 
-### 路由结果
+---
 
-- **Bug 排查** → 调用 `superpowers:systematic-debugging` skill（**REQUIRED SUB-SKILL**）定位根因，**输出根因分析后暂停，等待用户确认修复方案后再改代码**
-- **功能开发** → 进入 Step 1 继续功能开发流程
+## 业务线 A: Bug 排查
 
-### Bug 排查确认机制
+```dot
+digraph bug_flow {
+    "询问Bug记录目录\n创建Bug记录文件" [shape=doublecircle];
+    "排查根因\n(superpowers:systematic-debugging)" [shape=box];
+    "输出根因分析\n等待用户确认" [shape=box];
+    "修复代码\n记录解决过程" [shape=box];
+    "更新Bug最终结果" [shape=doublecircle];
+
+    "询问Bug记录目录\n创建Bug记录文件" -> "排查根因\n(superpowers:systematic-debugging)";
+    "排查根因\n(superpowers:systematic-debugging)" -> "输出根因分析\n等待用户确认";
+    "输出根因分析\n等待用户确认" -> "修复代码\n记录解决过程";
+    "修复代码\n记录解决过程" -> "更新Bug最终结果";
+}
+```
+
+### A-1: 询问记录目录
+
+判定为 Bug 后，**第一步**询问用户：
+
+> Bug 记录文件保存到哪个目录？（默认：项目根目录下 `docs/bugs/`）
+
+- 用户指定目录 → 使用用户指定路径
+- 用户未指定 → 使用默认 `docs/bugs/`
+- 目录不存在 → 自动创建
+
+### A-2: 创建 Bug 记录文件
+
+文件名格式：`YYYY-MM-DD_bug-简短描述.md`（Asia/Shanghai 时区）
+
+模板：
+
+```markdown
+# Bug: [简短描述]
+
+## Bug 描述
+
+[用户反馈的问题现象，包含错误信息、复现步骤等]
+
+## Bug 原因
+
+[排查后填入：根因分析结果]
+
+## Bug 解决思路
+
+[排查后填入：建议的修复方案]
+
+## Bug 解决过程
+
+### 第 1 轮
+
+- **用户反馈**: [用户描述的问题/需求]
+- **解决方案**: [采取的解决措施]
+
+### 第 2 轮
+
+- **用户反馈**: [用户对第 1 轮解决方案的反馈/新问题]
+- **解决方案**: [根据反馈调整的解决措施]
+
+（后续轮次按需追加）
+
+## Bug 最终结果
+
+[未解决 / 已解决]
+
+[如已解决，简要说明最终修复方案]
+```
+
+### A-3: 记录时机
+
+| 阶段 | 记录内容 |
+|------|---------|
+| 创建文件时 | 填入 **Bug 描述**（用户原始反馈） |
+| 根因分析完成 | 填入 **Bug 原因** 和 **Bug 解决思路** |
+| 每轮修复后 | 追加 **解决过程** 第 N 轮：用户反馈 + 解决方案 |
+| Bug 关闭时 | 填入 **Bug 最终结果**（已解决/未解决） |
+
+### A-4: 排查确认机制
 
 **铁律：先说原因，不改代码。等用户说"改"再改。**
 
-1. **排查阶段** — 使用 `superpowers:systematic-debugging` 定位根因，此阶段只读代码、读日志、分析证据，**禁止修改任何文件**
-2. **输出根因** — 向用户完整报告：根因是什么、在哪个文件哪行、为什么导致了 bug、建议的修复方案
-3. **等待确认** — 明确询问用户："以上分析是否正确？是否按此方案修复？"
-4. **用户确认后** — 才开始修改代码实现修复
+1. **排查阶段** — 使用 `superpowers:systematic-debugging`（**REQUIRED SUB-SKILL**）定位根因，此阶段只读代码/日志/证据，**禁止修改任何文件**
+2. **输出根因** — 向用户报告：根因、位置、原因、建议修复方案
+3. **等待确认** — 明确询问："以上分析是否正确？是否按此方案修复？"
+4. **用户确认后** — 才修改代码，同时更新 Bug 记录的解决过程
 
-## 依赖检查
+### A-5: 最终结果
 
-coder-task 依赖以下 skill，触发时**必须**先检查是否可用：
+Bug 解决或用户主动终止时更新：
 
-| 依赖 skill | 来源 | 用途 | 检查方式 |
-|------------|------|------|---------|
-| `superpowers:systematic-debugging` | superpowers 插件 | Bug 排查流程 | `ls ~/.claude/plugins/cache/claude-plugins-official/superpowers/*/skills/systematic-debugging/SKILL.md` |
-| `web-access` | `~/.claude/skills/` 或 `~/.agents/skills/` | 联网搜索 | `ls ~/.claude/skills/web-access/SKILL.md` |
-| `superpowers:brainstorming` | superpowers 插件 | 复杂任务需求分析 | `ls ~/.claude/plugins/cache/claude-plugins-official/superpowers/*/skills/brainstorming/SKILL.md` |
-| `superpowers:writing-plans` | superpowers 插件 | 编写实现计划 | `ls ~/.claude/plugins/cache/claude-plugins-official/superpowers/*/skills/writing-plans/SKILL.md` |
+- **已解决** — 说明最终修复方案
+- **未解决** — 说明当前进展和阻塞原因
 
-### 检查流程
+---
 
-1. 使用 Bash 逐一检查依赖 skill 的 SKILL.md 是否存在
-2. **全部可用** → 正常执行对应流程
-3. **有缺失** → 向用户报告缺失列表，并给出安装指引
+## 业务线 B: 功能开发
 
-### 安装指引
+```dot
+digraph feature_flow {
+    "是否涉及页面UI及交互?" [shape=diamond];
+    "调用 frontend-design\n(定义设计方向与实现)" [shape=box];
+    "任务复杂度判断" [shape=diamond];
+    "需求分析\n(brainstorming)" [shape=box];
+    "编写实现计划\n(writing-plans)" [shape=box];
+    "CLAUDE.md合规审查" [shape=box];
+    "审查通过?" [shape=diamond];
+    "输出最终计划" [shape=doublecircle];
 
-**缺失 `superpowers:systematic-debugging`、`superpowers:brainstorming` 或 `superpowers:writing-plans`**（插件 skill）：
+    "是否涉及页面UI及交互?" -> "调用 frontend-design\n(定义设计方向与实现)" [label="是"];
+    "是否涉及页面UI及交互?" -> "任务复杂度判断" [label="否"];
+    "调用 frontend-design\n(定义设计方向与实现)" -> "任务复杂度判断";
+    "任务复杂度判断" -> "需求分析\n(brainstorming)" [label="复杂"];
+    "任务复杂度判断" -> "编写实现计划\n(writing-plans)" [label="简单"];
+    "需求分析\n(brainstorming)" -> "编写实现计划\n(writing-plans)";
+    "编写实现计划\n(writing-plans)" -> "CLAUDE.md合规审查";
+    "CLAUDE.md合规审查" -> "审查通过?";
+    "审查通过?" -> "输出最终计划" [label="通过"];
+    "审查通过?" -> "编写实现计划\n(writing-plans)" [label="不通过"];
+}
 ```
-这些 skill 来自 superpowers 插件，需要：
-1. 确认已安装 superpowers 插件
-2. 运行 /install-superpowers 或在 Claude Code 设置中启用该插件
-3. 插件安装后，skill 会自动注册到可用列表
-```
 
-**缺失 `web-access`**（本地 skill）：
-```bash
-# 方式一：如果有 claude-extend 仓库，重新运行安装脚本
-cd <claude-code-extend 仓库路径> && bash scripts/install.sh
+### B-0: 页面 UI / 交互判断（功能开发第一步，先于复杂度判断）
 
-# 方式二：手动创建符号链接
-ln -s <skill 源路径> ~/.claude/skills/<skill-name>
-```
+判定为功能开发后，**第一步**先判断需求是否涉及页面 UI 或交互：
 
-### 检查时机
+| 信号 | 涉及页面 UI / 交互 | 不涉及 |
+|------|-------------------|--------|
+| 典型关键词 | 页面、界面、UI、布局、样式、组件、卡片、导航栏、表单、按钮、动画、过渡、hover、交互、可视化、图表、大屏、前端展示 | 接口、服务、定时任务、脚本、数据库、迁移、命令行工具、纯后端逻辑 |
+| 任务产物 | 用户在浏览器/客户端能看到的视觉元素或能操作的交互行为 | 用户不直接感知的后端代码或数据 |
 
-- **每次触发 coder-task 时**执行依赖检查
-- 路由到具体流程前确认对应依赖可用（如路由到 bug 排查前确认 superpowers:systematic-debugging 可用）
-- 不要在依赖缺失的情况下继续执行，避免流程中断
+**判断规则：**
 
-## 知识搜索规则
+1. **只要产物中包含"用户能看到/能操作的 UI 或交互"即为"涉及"**——即便任务同时含后端逻辑（如带表单校验的提交接口），UI 部分也触发本规则。
+2. **涉及 → MUST 调用 `frontend-design` skill**（见 B-2a），无例外。"用户没要求设计感""已有设计稿""我自己会写 CSS"均不构成跳过理由——设计稿已有则用 frontend-design 核校一致性，自己写 CSS 则用 frontend-design 把控视觉质量。
+3. **不涉及 → 跳过 frontend-design**，直接进入 B-1 复杂度判断。
+4. **无法判断 → 向用户确认产物形态**，不要猜测跳过。
 
-**当任务执行过程中需要搜索相关知识时，只使用 `web-access` skill 进行搜索。**
+### B-2a: 调用 frontend-design（涉及 UI/交互时强制）
 
-**禁止的搜索方式：**
-- 禁止使用 WebSearch 工具
-- 禁止使用 WebFetch 工具
-- 禁止使用 curl 直接抓取网页
+**REQUIRED SUB-SKILL:** 当 B-0 判定为"涉及"时，使用 `frontend-design`，**与 brainstorming/writing-plans 并行衔接**：
 
-**唯一允许的方式：** 调用 `web-access` skill，由其根据场景自动选择最优联网工具。
+- 在需求分析/方案设计阶段：用 `frontend-design` 确立设计方向（美学基调、配色、字体、动效、空间构成），避免通用 AI 模板化视觉
+- 在编写实现计划阶段：用 `frontend-design` 指导组件视觉规范、交互细节、动效实现方式，确保产物达到生产级设计质量
+- `frontend-design` 的设计输出作为 `brainstorming` 的设计维度输入、`writing-plans` 的实现依据，而非独立环节
 
-**适用场景：**
-- 需要搜索技术方案、最佳实践
-- 需要查阅 API 文档、官方文档
-- 需要了解库/框架的用法
-- 任何需要联网获取信息的场景
-
-**不适用场景：**
-- 仅需读取本地项目文件、代码 — 直接用 Read/grep
-- 无需联网的纯逻辑推理 — 直接分析
-
-## Step 1: 复杂度判断（功能开发）
-
-收到开发任务后，先判断任务复杂度：
+### B-1: 复杂度判断
 
 | 信号 | 简单任务 | 复杂任务 |
 |------|---------|---------|
@@ -145,93 +193,87 @@ ln -s <skill 源路径> ~/.claude/skills/<skill-name>
 | 技术方案 | 已有现成模式 | 需要探索和选型 |
 | 影响范围 | 单一功能点 | 跨子系统或多角色 |
 
-**有疑问时默认判断为复杂** — 宁可多分析，不可漏分析。
+**有疑问时默认判断为复杂。**
 
-## Step 2: 需求分析（复杂任务）
+### B-2: 需求分析（复杂任务）
 
-**REQUIRED SUB-SKILL:** 使用 `superpowers:brainstorming` 分析需求。
+**REQUIRED SUB-SKILL:** 使用 `superpowers:brainstorming`
 
-- 与用户逐个确认：业务目标、技术约束、成功标准
+- 逐个确认：业务目标、技术约束、成功标准
 - 提出 2-3 种方案及权衡
 - 获得用户对设计的明确批准
 - 产出设计文档保存到 `docs/superpowers/specs/`
 
-简单任务跳过此步，直接进入 Step 3。
+简单任务跳过此步。
 
-## Step 3: 编写实现计划
+### B-3: 编写实现计划
 
-**REQUIRED SUB-SKILL:** 使用 `superpowers:writing-plans` 编写实现计划。
+**REQUIRED SUB-SKILL:** 使用 `superpowers:writing-plans`
 
-- 计划文件名格式: `YYYY-MM-DD_HH-xx.md`（HH 为 Asia/Shanghai 时区，xx 为中文计划名称）
+- 文件名格式: `YYYY-MM-DD_HH-xx.md`（Asia/Shanghai 时区，xx 为中文计划名称）
 - 保存路径: `docs/superpowers/plans/`
 - 每个任务包含：文件路径、完整代码、测试命令、预期输出
 - 无占位符（TBD/TODO 禁止出现）
 
-## Step 4: CLAUDE.md 合规审查
+### B-4: CLAUDE.md 合规审查
 
-计划编写完成后，**必须**审查计划是否符合 CLAUDE.md 规范。
-
-### 审查顺序
-
-1. **用户级 CLAUDE.md** — `~/.claude/CLAUDE.md`（优先级最高）
-2. **项目级 CLAUDE.md** — 项目根目录下的 `.claude/CLAUDE.md`
-
-### 审查清单
-
-逐项检查计划是否违反 CLAUDE.md 中的规则：
+审查顺序：用户级 `~/.claude/CLAUDE.md`（最高优先）→ 项目级 `.claude/CLAUDE.md`
 
 | 检查项 | 审查内容 |
 |--------|---------|
-| 语言要求 | 计划中的沟通/注释是否符合语言要求（如中文回复） |
-| Git 规范 | 提交信息是否遵循 Conventional Commits，是否包含禁止的 Co-Authored-By |
-| Git 自动提交 | 计划中是否包含自动 git commit 步骤（应删除） |
-| 技术栈规范 | 代码风格是否符合项目技术栈要求（如 Golang 规范） |
-| 项目特定规则 | 是否遵循项目 CLAUDE.md 中的特殊要求 |
-| 计划文件命名 | 是否符合 `YYYY-MM-DD_HH-xx.md` 格式 |
+| 语言要求 | 沟通/注释是否符合语言要求 |
+| Git 规范 | Conventional Commits，无禁止的 Co-Authored-By |
+| Git 自动提交 | 无自动 git commit 步骤 |
+| 技术栈规范 | 代码风格符合项目技术栈 |
+| 项目特定规则 | 遵循项目 CLAUDE.md 特殊要求 |
+| 文件命名 | 符合 `YYYY-MM-DD_HH-xx.md` 格式 |
 
-### 审查结果处理
+不通过则修正后重新审查。
 
-- **通过**: 进入 Step 5
-- **不通过**: 修正计划中违反规则的步骤，重新检查
+### B-5: 输出最终计划
 
-## Step 5: 输出最终计划
+审查通过后，向用户确认计划内容，提供执行选项（参考 writing-plans 的 Execution Handoff）。
 
-审查通过后，向用户确认最终计划内容，提供执行选项（参考 writing-plans 的 Execution Handoff）。
+---
 
-## Red Flags — 停下检查
+## 依赖检查
 
-- 未检查依赖 skill 是否可用就执行流程 → 必须先检查依赖
-- 依赖缺失但仍继续执行 → 停下来报告缺失并引导安装
-- Bug 排查时未输出根因就直接改代码 → 先输出根因分析，等用户确认后再改
-- Bug 排查排查阶段就修改文件 → 排查阶段只读不改，确认后才能改代码
-- 跳过任务类型判断直接写计划 → 必须先判断是 bug 还是功能
-- Bug 排查任务走了功能开发流程 → 必须路由到 superpowers:systematic-debugging
-- 功能开发任务走了 superpowers:systematic-debugging → 确认分类是否正确
-- 混合任务只走了一条流程 → 拆分为 bug 修复 + 功能开发两个子任务
-- 跳过复杂度判断直接写计划 → 必须先判断
-- 复杂任务跳过 brainstorming → 复杂任务必须分析需求
-- 计划包含 TBD/TODO → 补全或删除
-- 未审查 CLAUDE.md 就输出计划 → 必须审查
-- 只读了项目级 CLAUDE.md 忽略用户级 → 用户级优先
-- 计划中包含自动 git commit 步骤 → 删除自动提交
-- 计划提交信息包含 Co-Authored-By → 删除
-- 使用 WebSearch/WebFetch/curl 搜索知识 → 必须使用 web-access skill
+触发时**必须**先检查依赖 skill 是否可用：
 
-## Common Mistakes
+| 依赖 skill | 用途 | 检查方式 |
+|------------|------|---------|
+| `superpowers:systematic-debugging` | Bug 排查根因 | `ls ~/.claude/plugins/cache/claude-plugins-official/superpowers/*/skills/systematic-debugging/SKILL.md` |
+| `superpowers:brainstorming` | 复杂任务需求分析 | `ls ~/.claude/plugins/cache/claude-plugins-official/superpowers/*/skills/brainstorming/SKILL.md` |
+| `superpowers:writing-plans` | 编写实现计划 | `ls ~/.claude/plugins/cache/claude-plugins-official/superpowers/*/skills/writing-plans/SKILL.md` |
+| `frontend-design` | 页面 UI / 交互开发的设计与实现 | `ls ~/.claude/skills/frontend-design/SKILL.md` |
+| `web-access` | 联网搜索 | `ls ~/.claude/skills/web-access/SKILL.md` |
 
-| 错误 | 修正 |
-|------|------|
-| 未检查依赖就执行，到一半发现 skill 不可用 | 每次触发时先检查所有依赖 skill 是否已安装 |
-| 依赖缺失时自行跳过或降级处理 | 停下来报告缺失，引导用户安装后再继续 |
-| Bug 排查走功能开发流程写实现计划 | Bug 必须路由到 superpowers:systematic-debugging，先找根因再修复 |
-| Bug 排查未等确认就直接改代码 | 先输出根因分析和修复方案，等用户确认后再改代码 |
-| Bug 排查排查阶段修改文件 | 排查阶段只读代码/日志，不改任何文件 |
-| 功能开发走 superpowers:systematic-debugging | 功能开发应走 brainstorming → writing-plans 流程 |
-| 混合任务只处理一部分 | 拆分为 bug 修复 + 功能开发，分别走对应流程 |
-| 无法判断任务类型时猜测 | 向用户确认任务类型 |
-| 所有任务都走 brainstorming | 简单任务直接写计划，节约时间 |
-| 只判断为简单跳过分析但需求实际模糊 | 有疑问就判断为复杂 |
-| 审查 CLAUDE.md 时遗漏用户级文件 | 用户级优先于项目级 |
-| 审查不通过但直接输出 | 必须修正后重新审查 |
-| 计划中包含 git 自动提交 | CLAUDE.md 禁止自动提交，删除该步骤 |
-| 使用 WebSearch/WebFetch 搜索知识 | 必须通过 web-access skill 进行所有联网搜索 |
+缺失时向用户报告并给出安装指引，不继续执行。
+
+## 知识搜索规则
+
+**只使用 `web-access` skill 搜索，禁止 WebSearch/WebFetch/curl。**
+
+## Red Flags
+
+- 未检查依赖就执行 → 必须先检查
+- 依赖缺失仍继续 → 停下来报告
+- 跳过类型判断 → 必须先判断
+- Bug 排查直接改代码 → 先输出根因等确认
+- Bug 排查阶段修改文件 → 排查阶段只读不改
+- Bug 未询问记录目录 → 必须先询问
+- Bug 未创建记录文件 → 判定为 bug 后必须创建
+- Bug 记录缺少字段 → 必须包含：描述、原因、解决思路、解决过程、最终结果
+- 解决过程未按轮次记录 → 每轮追加第 N 轮
+- Bug 关闭未更新最终结果 → 必须填写
+- 混合任务只走一条线 → 拆分为两条业务线
+- 功能开发未先做 B-0 UI/交互判断 → 必须先判断
+- 涉及 UI/交互却跳过 frontend-design → MUST 调用，无例外
+- 把 frontend-design 当"可选辅助"而非强制 → 涉及即强制，不可跳过
+- 以"用户没要求设计感""已有设计稿""自己会写 CSS"为由跳过 frontend-design → 不构成跳过理由
+- 纯后端/接口任务误调用 frontend-design → 仅 UI/交互才调用
+- 复杂任务跳过 brainstorming → 必须分析
+- 计划含 TBD/TODO → 补全或删除
+- 未审查 CLAUDE.md → 必须审查
+- 计划含自动 git commit → 删除
+- 使用 WebSearch/WebFetch → 必须用 web-access

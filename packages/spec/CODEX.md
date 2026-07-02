@@ -10,6 +10,42 @@
 - 代码中的函数、类、对象应补充中文注释，注释风格遵守对应语言规范。
 - 代码实现应优先保证易读性、易维护性、可扩展性，避免过度耦合和过度设计。
 - 对流程复杂的业务逻辑，应补充业务流程说明和必要的实现说明。
+- 禁止在循环中查数据库（避免 N+1 查询）：需要获取关联数据时，必须先收集主键/外键集合，一次性批量查询（IN 查询或批量接口），再在内存中通过 map/字典组装数据；不得在 for/range 循环体内调用单条查询接口。代码 demo 如下：
+
+  ```go
+  // ❌ 反例：在循环中逐条查询作者，每次循环触发一次 DB 查询，产生 N+1 问题
+  for i := range articles {
+      author, err := articleRepo.GetAuthorByID(ctx, articles[i].AuthorID) // 循环内查 DB，禁止
+      if err != nil {
+          return err
+      }
+      articles[i].Author = author
+  }
+
+  // ✅ 正例：先收集 ID 批量查询，再在内存中按 map 组装数据
+  // 1. 收集需要查询的作者 ID（去重）
+  authorIDSet := make(map[int64]struct{}, len(articles))
+  for _, a := range articles {
+      authorIDSet[a.AuthorID] = struct{}{}
+  }
+  authorIDs := make([]int64, 0, len(authorIDSet))
+  for id := range authorIDSet {
+      authorIDs = append(authorIDs, id)
+  }
+
+  // 2. 一次性批量查询，返回 map[id]*Author，便于后续组装
+  authorMap, err := articleRepo.GetAuthorsByIDs(ctx, authorIDs)
+  if err != nil {
+      return err
+  }
+
+  // 3. 在内存中按主键组装关联数据，无额外 DB 访问
+  for i := range articles {
+      if author, ok := authorMap[articles[i].AuthorID]; ok {
+          articles[i].Author = author
+      }
+  }
+  ```
 
 ## Git 约束
 - 禁止自动提交 Git。
