@@ -49,7 +49,6 @@
 - 禁止使用 git worktree，不得创建、切换或操作 worktree
 - **Co-Authored-By 禁止**: git 提交信息中不能包含 "Co-Authored-By" 及任何 AI 协作者署名（如 "Co-Authored-By: Claude ...", "Co-Authored-By: Copilot ..." 等）
 - **提交信息格式**: 使用简洁明了的中文提交信息，遵循 Conventional Commits 格式（如 feat:, fix:, style: 等）
-- **提交内容**: 只提交实际修改的代码文件，不要提交自动生成的文件或临时文件
 
 # Golang（仅在 Go 项目中生效）
 @import ./coder/golang/my_style.md
