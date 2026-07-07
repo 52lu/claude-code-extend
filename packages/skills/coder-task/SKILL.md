@@ -1,22 +1,47 @@
 ---
 name: coder-task
-description: Use when receiving a development task or feature request that needs a structured implementation plan, OR a bug/issue that needs investigation and fixing. Triggers on requests like "帮我开发", "实现功能", "新增模块", "写个接口", "修复bug", "排查问题", "报错了", "异常", or any coding task requiring structured approach. 当需求涉及页面 UI 或交互（如页面、组件、布局、样式、动画、表单交互、可视化展示）时，自动路由到 frontend-design skill。All knowledge search must use web-access skill exclusively.
+description: Use when receiving a development task or feature request that needs a structured implementation plan, OR a bug/issue that needs investigation and fixing. Triggers on requests like "帮我开发", "实现功能", "新增模块", "写个接口", "修复bug", "排查问题", "报错了", "异常", or any coding task requiring structured approach. 当需求涉及页面 UI 或交互（如页面、组件、布局、样式、动画、表单交互、可视化展示）时，自动路由到 frontend-design skill。当用户提问模糊、指代不清、意图或范围不明时，先调用 grill-me 澄清再路由。All knowledge search must use web-access skill exclusively.
 ---
 
 # Coder Task
 
-编码任务路由器：判断任务类型 → 走对应业务线。Bug 排查走业务线 A，功能开发走业务线 B。**功能开发中，凡涉及页面 UI 及交互的，必须自动调用 `frontend-design` skill。**
+编码任务路由器：先判断是否完全理解用户提问（不能完全理解则调用 `grill-me` 澄清）→ 判断任务类型 → 走对应业务线。Bug 排查走业务线 A，功能开发走业务线 B。**功能开发中，凡涉及页面 UI 及交互的，必须自动调用 `frontend-design` skill。**
+
+## Step 0: 需求澄清（条件触发，优先于主路由）
+
+收到编码任务后，**先判断是否完全理解了用户提问**，再决定是否进入主路由做任务类型分类。
+
+**「不能完全理解」的判定标准（满足任一即触发）：**
+
+- 意图不清：用户用"那个东西"、"之前提过的"、"你看着办"等指代不清的表述，无法确定到底要做什么
+- 范围不明：无法判断任务覆盖哪些内容、边界在哪里（改哪个模块、影响多大）
+- 任务类型无法判断：既不像 Bug 排查也不像功能开发，或两者特征交织无法归类
+- 存在歧义：用户的需求存在两种以上合理解读，无法确定是哪一种
+- 关键信息缺失：缺少动笔所需的核心要素（如涉及的模块名、问题现象、期望结果）
+
+**触发后的处理（必须按此顺序，不得跳过）：**
+
+1. **调用 `grill-me` skill** 对用户展开追问式访谈，逐层澄清上述不明确的点。**不要自行假设意图、不要随手罗列一张确认问题清单代替访谈**——主路由判断规则第 3 条的"向用户确认"不适用于此处，`grill-me` 的层层追问比一次性列清单更能逼出真实需求。
+2. 访谈完成后，输出一份明确的需求摘要（意图、范围、任务类型倾向）供用户确认。
+3. 用户确认后，带着澄清结果进入主路由的任务类型判断。
+
+**不触发的情况：** 用户提问明确、要素齐全（意图清晰、范围可推断、任务类型可判定）时，直接进入主路由，不要为走流程而强行发起 grill-me 访谈。
 
 ## 主路由
 
 ```dot
 digraph coder_task {
     "收到编码任务" [shape=doublecircle];
+    "是否完全理解用户提问?" [shape=diamond];
+    "调用 grill-me 澄清\n等待用户确认" [shape=box];
     "任务类型判断" [shape=diamond];
     "业务线A: Bug排查" [shape=box];
     "业务线B: 功能开发" [shape=box];
 
-    "收到编码任务" -> "任务类型判断";
+    "收到编码任务" -> "是否完全理解用户提问?";
+    "是否完全理解用户提问?" -> "调用 grill-me 澄清\n等待用户确认" [label="否"];
+    "是否完全理解用户提问?" -> "任务类型判断" [label="是"];
+    "调用 grill-me 澄清\n等待用户确认" -> "任务类型判断" [label="澄清后确认"];
     "任务类型判断" -> "业务线A: Bug排查" [label="Bug排查"];
     "任务类型判断" -> "业务线B: 功能开发" [label="功能开发"];
 }
@@ -242,6 +267,7 @@ digraph feature_flow {
 
 | 依赖 skill | 用途 | 检查方式 |
 |------------|------|---------|
+| `grill-me` | 需求模糊时追问式访谈澄清 | `ls ~/.claude/skills/grill-me/SKILL.md` |
 | `superpowers:systematic-debugging` | Bug 排查根因 | `ls ~/.claude/plugins/cache/claude-plugins-official/superpowers/*/skills/systematic-debugging/SKILL.md` |
 | `superpowers:brainstorming` | 复杂任务需求分析 | `ls ~/.claude/plugins/cache/claude-plugins-official/superpowers/*/skills/brainstorming/SKILL.md` |
 | `superpowers:writing-plans` | 编写实现计划 | `ls ~/.claude/plugins/cache/claude-plugins-official/superpowers/*/skills/writing-plans/SKILL.md` |
@@ -256,6 +282,11 @@ digraph feature_flow {
 
 ## Red Flags
 
+- 用户提问模糊却跳过 Step 0 → 不能完全理解时必须先调用 grill-me
+- 用主路由"无法判断→向用户确认"代替 Step 0 → 任务类型无法判断属于 Step 0 触发条件，须用 grill-me 访谈而非自行列问题
+- 自行假设用户意图后直接路由 → 不得假设，先 grill-me 澄清
+- 把"向用户确认"理解为"自己列一张问题清单" → grill-me 是层层追问式访谈，不是一次性列清单
+- 需求明确却强行发起 grill-me → 要素齐全时直接进主路由
 - 未检查依赖就执行 → 必须先检查
 - 依赖缺失仍继续 → 停下来报告
 - 跳过类型判断 → 必须先判断
